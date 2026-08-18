@@ -60,7 +60,7 @@ Choose **three** from:
 - Cost model with optimization strategies
 
 ### 5. ADRs (3-5 records)
-Document key architectural decisions using the [ADR template](../appendices/adr-templates.md).
+Document key architectural decisions using the [ADR template](./appendices/adr-templates.md).
 
 ### 6. Presentation (20 minutes)
 - 5 min: Problem and requirements
@@ -158,10 +158,10 @@ Share the repository link for review.
 
 ## Resources
 
-- [System Design Checklist](../appendices/system-design-checklist.md)
-- [ADR Templates](../appendices/adr-templates.md)
-- [Case Studies](../chapters/14-case-studies.md)
-- [Interview Guide](../chapters/15-interview-preparation.md)
+- [System Design Checklist](./appendices/system-design-checklist.md)
+- [ADR Templates](./appendices/adr-templates.md)
+- [Case Studies](./chapters/14-case-studies.md)
+- [Interview Guide](./chapters/15-interview-preparation.md)
 
 ---
 
