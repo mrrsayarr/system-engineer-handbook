@@ -86,7 +86,7 @@ make build
 - **Images**: Place in `assets/images/`, reference relatively
 
 ### Terminology
-- Use consistent terms (see [Glossary](../appendices/glossary.md))
+- Use consistent terms (see [Glossary](./appendices/glossary.md))
 - Define acronyms on first use: "Service Level Objective (SLO)"
 - Prefer "primary/replica" over "master/slave"
 - Prefer "allowlist/denylist" over "whitelist/blacklist"
