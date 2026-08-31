@@ -1,6 +1,7 @@
 # Chapter 15: Interview Preparation Guide
 
-> **Estimated Time: 3-4 hours** | **Prerequisites: Chapters 1-14**
+> **Estimated Time:** 4–6 hours | **Prerequisites:** Chapters 1–14<br>
+> **Last reviewed:** 2026-08-31 | **Level:** Foundation → deliberate practice → interview simulation
 
 ---
 
@@ -8,7 +9,7 @@
 
 By the end of this chapter, you will be able to:
 
-1. **System design interviews** with a structured, repeatable process
+1. **Structure system design interviews** with a repeatable process
 2. **Communicate clearly** under pressure with diagrams and narratives
 3. **Answer behavioral questions** using behavioral and situational frameworks
 4. **Demonstrate trade-off thinking** instead of one right answer
@@ -77,6 +78,21 @@ TOPICS:
 
 ### Step-by-step approach
 
+```mermaid
+flowchart LR
+    Q[Clarify scope] --> N[Estimate scale]
+    N --> I[Define interfaces and data]
+    I --> H[Draw critical-path architecture]
+    H --> D[Deep-dive on the limiting constraint]
+    D --> P[Cover failure, security, operations and cost]
+    P --> M[Summarize trade-offs and open risks]
+```
+
+For a 45-minute interview, a useful starting budget is 5 minutes for scope,
+5 for estimates/interfaces, 10 for the high-level design, 15 for the requested
+deep dive, and 10 for production concerns and summary. Adapt immediately when
+the interviewer redirects the discussion.
+
 ```text
 STEP 1: REQUIREMENTS
   functional requirements
@@ -126,9 +142,10 @@ STATE ASSUMPTIONS:
 
 EXPLAIN TRADE-OFFS INSTEAD OF JUST ONE CHOICE:
   instead of Cassandra is best, say:
-    "We could use Cassandra for write scale and geo replication,
-     but that trades query flexibility and strong consistency.
-     If ordering and transactions matter, Spanner or CockroachDB fit better."
+    "A wide-column store may fit known high-write access patterns,
+     but it trades away flexible relational queries. If multi-row transaction
+     semantics are required, I would evaluate distributed SQL and measure its
+     latency, availability, operational, and cost trade-offs."
 
 LEAVE TIME FOR ELABORATION:
   reserve time for the deep dive
@@ -277,23 +294,23 @@ DEPTH:
 
 ## 15.6 Exercises
 
-### Exercise 1
+### Exercise 1 — Foundation: Timed Design
 
 Practice system design for a web crawler in 30 minutes with diagrams and trade-offs.
 
-### Exercise 2
+### Exercise 2 — Applied: Behavioral Practice
 
 Practice behavioral questions with a partner using STAR format for 40 minutes.
 
-### Exercise 3
+### Exercise 3 — Applied: Written Design
 
 Write answers to three common system design questions with diagrams and numbers.
 
-### Exercise 4
+### Exercise 4 — Advanced: Mock Interview
 
 Simulate a behavioral interview covering ownership, ambiguity, and technical influence.
 
-### Exercise 5
+### Exercise 5 — Advanced: Study Plan
 
 Design a three month study plan to address weak areas identified from this chapter.
 
@@ -313,7 +330,7 @@ Design a three month study plan to address weak areas identified from this chapt
 ## 15.8 Summary Checklist
 
 - [ ] can structure system design answers using the 6 step framework
-- [ ] can produce clear diagrams and numbers fast
+- [ ] can produce legible diagrams and defensible estimates within the timebox
 - [ ] can compare trade-offs instead of picking one right answer
 - [ ] can answer behavioral questions using STAR
 - [ ] can explain cache, queue, load balancer, database patterns

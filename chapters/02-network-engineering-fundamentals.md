@@ -1,6 +1,7 @@
 # Chapter 2: Network Engineering Fundamentals
 
-> **Estimated Time: 3-4 hours** | **Prerequisites: Basic Linux, TCP/IP awareness**
+> **Estimated Time:** 5–7 hours | **Prerequisites:** Basic Linux and TCP/IP awareness<br>
+> **Last reviewed:** 2026-08-31 | **Level:** Foundation → applied → production judgment
 
 ---
 
@@ -45,15 +46,15 @@ By the end of this chapter, you will be able to:
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│ Application Data (e.g., HTTP GET /index.html)           │
+│ Application Data (e.g., HTTP GET /index.html)            │
 ├──────────────────────────────────────────────────────────┤
-│ TCP Header (Src/Dst Port, Seq, Ack, Flags, Checksum)   │  ← L4
+│ TCP Header (Src/Dst Port, Seq, Ack, Flags, Checksum)     │  ← L4
 ├──────────────────────────────────────────────────────────┤
-│ IP Header (Src/Dst IP, TTL, Protocol=TCP)              │  ← L3
+│ IP Header (Src/Dst IP, TTL, Protocol=TCP)                │  ← L3
 ├──────────────────────────────────────────────────────────┤
-│ Ethernet Header (Src/Dst MAC, EtherType=0x0800)        │  ← L2
+│ Ethernet Header (Src/Dst MAC, EtherType=0x0800)          │  ← L2
 ├──────────────────────────────────────────────────────────┤
-│ Preamble/SFD (7+1 bytes for sync)                       │  ← L1
+│ Preamble/SFD (7+1 bytes for sync)                        │  ← L1
 └──────────────────────────────────────────────────────────┘
 
 Sent bits → Receiver reverses → Application receives data
@@ -65,23 +66,28 @@ Sent bits → Receiver reverses → Application receives data
 
 ## 2.2 IPv4 Addressing & Subnetting
 
-### Address Classes & CIDR
+### CIDR and Special-Purpose IPv4 Space
 
-| Class | Range | Default Mask | CIDR | Hosts |
-|-------|-------|--------------|------|-------|
-| A | 10.0.0.0 – 10.255.255.255 | 255.0.0.0 | /8 | 16,777,214 |
-| B | 172.16.0.0 – 172.31.255.255 | 255.255.0.0 | /12 | 1,048,574 |
-| C | 192.168.0.0 – 192.168.255.255 | 255.255.255.0 | /16 | 65,534 |
-| Loopback | 127.0.0.0 – 127.255.255.255 | /8 | — |
-| Link-Local | 169.254.0.0 – 169.254.255.255 | /16 | — |
-| Private RFC 1918 | 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 | — | — |
+Classful addressing is historical. Modern routing and allocation use CIDR
+prefixes; `/20`, for example, means that the first 20 bits identify the
+network. Do not call the RFC 1918 ranges “Class A/B/C networks.”
+
+| Purpose | Prefix | Operational note |
+|---------|--------|------------------|
+| Private-use | `10.0.0.0/8` | Not globally routed; avoid overlap across connected estates |
+| Private-use | `172.16.0.0/12` | The private range ends at `172.31.255.255` |
+| Private-use | `192.168.0.0/16` | Common in small networks and therefore collision-prone |
+| Loopback | `127.0.0.0/8` | Refers to the local host |
+| Link-local | `169.254.0.0/16` | Valid only on the local link |
+| Documentation | `192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24` | Use in examples instead of production addresses |
 
 ### Subnetting Cheat Sheet
 
 ```
 192.168.1.0/26 → ? hosts
   /26 means: 32 - 26 = 6 host bits
-  Subnets: 2^6 = 64 subnets (if /26 subnetted from /24)
+  Addresses: 2^6 = 64 addresses in this /26
+  Subnets: 2^(26-24) = 4 equal /26 subnets inside a /24
   Hosts: 2^6 - 2 = 62 usable per subnet
   Subnet mask: 255.255.255.192
   Subnets in /24:
@@ -128,13 +134,13 @@ Tools: sipcalc, subnetcalc, ipcalc, subnet-design-tools
 
 ---
 
-## 2.3 IPv6 — The Future (and Present)
+## 2.3 IPv6 in Production
 
 ### Why IPv6?
 
 - **Exhaustion**: IANA exhausted IPv4 in 2011, RIRs followed
-- **Header simplicity**: No fragmentation, simpler forwarding
-- **Built-in**: SLAAC, IPsec, no NAT needed (E2E principle)
+- **Forwarding model**: routers do not fragment IPv6 packets; endpoints use Path MTU Discovery and may fragment at the source
+- **Operations**: SLAAC and DHCPv6 support different configuration models; IPsec support does not make traffic encrypted by default
 - **Scale**: 2¹²⁸ addresses (~3.4×10³⁸)
 
 ### Address Types
@@ -166,7 +172,7 @@ Total: 40 bytes fixed (vs 20-60 bytes IPv4)
 
 | Mechanism | Purpose | When to Use |
 |-----------|---------|-------------|
-| **Dual-stack** | Run IPv4 + IPv6 simultaneously | Recommended transition |
+| **Dual-stack** | Run IPv4 + IPv6 simultaneously | Common transition; doubles the policy and observability surface |
 | **NAT64/DNS64** | IPv6-only hosts access IPv4 services | Mobile carriers |
 | **464XLAT** | Translation for IPv4-only apps | Mobile carriers |
 | **6rd** | IPv6 over IPv4 tunnels | ISP transition |
@@ -244,7 +250,8 @@ router bgp 65001
 - **Anycast**: Same IP from multiple locations (DNS, CDN, DDoS mitigation)
 - **BGP communities**: Tags for policy enforcement
 - **Route reflection / Confederation**: Scalable iBGP
-- **BGPsec / RPKI**: Origin validation, route hijacking prevention
+- **RPKI Route Origin Validation (ROV)**: validates whether an origin AS is authorized for a prefix; it does not validate the complete AS path
+- **BGPsec**: signs AS-path propagation and is distinct from origin validation; deployment support and operational cost must be evaluated separately
 
 ---
 
@@ -340,6 +347,157 @@ Benefits:
 
 ---
 
+## 2.5.1 Hands-On Network Lab Guide
+
+### Setting Up a Local Network Lab (Containerlab)
+
+```bash
+# Install containerlab
+bash -c "$(curl -sL https://get.containerlab.dev)"
+
+# Create a spine-leaf topology
+cat > spine-leaf.clab.yml << 'EOF'
+name: spine-leaf-lab
+
+topology:
+  kinds:
+    srl:
+      image: ghcr.io/nokia/srlinux
+    linux:
+      image: ghcr.io/hellt/network-multitool
+
+  nodes:
+    spine1:
+      kind: srl
+      type: ixrd3
+    spine2:
+      kind: srl
+      type: ixrd3
+    leaf1:
+      kind: srl
+      type: ixrd3
+    leaf2:
+      kind: srl
+      type: ixrd3
+    leaf3:
+      kind: srl
+      type: ixrd3
+    leaf4:
+      kind: srl
+      type: ixrd3
+    client1:
+      kind: linux
+    client2:
+      kind: linux
+    server1:
+      kind: linux
+    server2:
+      kind: linux
+
+  links:
+    - endpoints: ["spine1:e1-1", "leaf1:e1-1"]
+    - endpoints: ["spine1:e1-2", "leaf2:e1-1"]
+    - endpoints: ["spine1:e1-3", "leaf3:e1-1"]
+    - endpoints: ["spine1:e1-4", "leaf4:e1-1"]
+    - endpoints: ["spine2:e1-1", "leaf1:e1-2"]
+    - endpoints: ["spine2:e1-2", "leaf2:e1-2"]
+    - endpoints: ["spine2:e1-3", "leaf3:e1-2"]
+    - endpoints: ["spine2:e1-4", "leaf4:e1-2"]
+    - endpoints: ["leaf1:e1-3", "client1:eth1"]
+    - endpoints: ["leaf2:e1-3", "client2:eth1"]
+    - endpoints: ["leaf3:e1-3", "server1:eth1"]
+    - endpoints: ["leaf4:e1-3", "server2:eth1"]
+
+# Deploy
+containerlab deploy -t spine-leaf.clab.yml
+
+# Access devices
+containerlab inspect -t spine-leaf.clab.yml
+ssh admin@clab-spine-leaf-lab-spine1
+```
+
+### FRRouting (FRR) BGP/OSPF Lab
+
+```bash
+# Install FRR
+sudo apt update && sudo apt install -y frr frr-pythontools
+
+# Enable daemons
+sed -i 's/bgpd=no/bgpd=yes/' /etc/frr/daemons
+sed -i 's/ospfd=no/ospfd=yes/' /etc/frr/daemons
+systemctl restart frr
+
+# Configure BGP (vtysh)
+vtysh
+conf t
+router bgp 65001
+ bgp router-id 1.1.1.1
+ neighbor 10.0.0.2 remote-as 65002
+ address-family ipv4 unicast
+  network 192.168.1.0/24
+ exit-address-family
+
+# Configure OSPF
+router ospf
+ ospf router-id 1.1.1.1
+ network 10.0.0.0/24 area 0
+ network 192.168.1.0/24 area 0
+```
+
+### GNS3 Lab: Multi-Site VPN with IPsec
+
+```
+Site A (10.10.0.0/16)          Site B (10.20.0.0/16)
+┌─────────────────────┐        ┌─────────────────────┐
+│  Cisco Router A     │        │  Cisco Router B     │
+│  ┌───────────────┐  │        │  ┌───────────────┐  │
+│  │ Crypto Map    │  │        │  │ Crypto Map    │  │
+│  │ IKEv2         │  │  IPsec │  │ IKEv2         │  │
+│  │ ESP AES-256   │◄─┼────────┼─►│ ESP AES-256   │  │
+│  └───────────────┘  │  Tunnel │  └───────────────┘  │
+└─────────────────────┘        └─────────────────────┘
+```
+
+```cisco
+# Site A IPsec Config
+crypto ikev2 proposal AES256
+ encryption aes-gcm-256
+ integrity sha256
+ group 21
+
+crypto ikev2 policy SITE-A-POLICY
+ proposal AES256
+
+crypto ikev2 keyring SITE-A-KEYRING
+ peer SITE-B
+  address 203.0.113.2
+  pre-shared-key SuperSecretKey123
+
+crypto ikev2 profile SITE-A-PROFILE
+ match identity remote address 203.0.113.2 255.255.255.255
+ identity local address 203.0.113.1
+ authentication remote pre-share
+ authentication local pre-share
+ keyring local SITE-A-KEYRING
+ lifetime 86400
+
+crypto ipsec transform-set AES256-GCM esp-gcm 256
+ mode tunnel
+
+crypto ipsec profile SITE-A-IPSEC
+ set transform-set AES256-GCM
+ set ikev2-profile SITE-A-PROFILE
+
+interface Tunnel0
+ ip address 169.254.1.1 255.255.255.252
+ tunnel source GigabitEthernet0/0
+ tunnel destination 203.0.113.2
+ tunnel mode ipsec ipv4
+ tunnel protection ipsec profile SITE-A-IPSEC
+```
+
+---
+
 ## 2.6 Transport Layer Deep Dive
 
 ### TCP/IP State Machine
@@ -366,30 +524,23 @@ Benefits:
 
 ### TCP Performance Tuning
 
+Start with evidence. Global kernel changes can improve one workload while
+hurting latency, fairness, connection reuse, or middlebox compatibility for
+another. Record a baseline, change one setting in an isolated environment,
+load test, and retain a rollback value.
+
 ```bash
-# Linux TCP buffers (auto-tuning since 2.6)
-net.ipv4.tcp_rmem = 4096 87380 6291456
-net.ipv4.tcp_wmem = 4096 65536 6291456
-net.core.rmem_max = 134217728
-net.core.wmem_max = 134217728
+# Inspect effective state; do not copy tuning values blindly
+sysctl net.ipv4.tcp_congestion_control
+sysctl net.ipv4.tcp_available_congestion_control
+sysctl net.ipv4.tcp_ecn
+sysctl net.core.somaxconn
+ss -s
+nstat -az
 
-# Congestion control
-sysctl net.ipv4.tcp_congestion_control = bbr  # BBR for high BW × latency
-sysctl net.ipv4.tcp_ecn = 1                    # Explicit Congestion Notification
-
-# Connection limits
-sysctl net.ipv4.tcp_max_syn_backlog = 65535
-sysctl net.core.somaxconn = 65535
-sysctl net.ipv4.tcp_tw_reuse = 1
-sysctl net.ipv4.tcp_fin_timeout = 15
-
-# TCP Fast Open (TFO) — send data in SYN packet
-sysctl net.ipv4.tcp_fastopen = 3
-
-# TCP window scaling for high BDP
-sysctl net.ipv4.tcp_window_scaling = 1
-sysctl net.ipv4.tcp_sack = 1
-sysctl net.ipv4.tcp_timestamps = 1
+# A controlled experiment records current and proposed values
+sysctl -n net.ipv4.tcp_congestion_control
+# sudo sysctl -w net.ipv4.tcp_congestion_control=<tested_algorithm>
 ```
 
 ### UDP & QUIC
@@ -407,7 +558,7 @@ sysctl net.ipv4.tcp_timestamps = 1
 
 QUIC Advantages over TCP+TLS:
 ┌─────────────────────────────────────────────────────────────┐
-│  ✓ 0-RTT / 1-RTT handshake (vs 2-RTT TCP+TLS)               │
+│  ✓ 1-RTT setup and optional 0-RTT resumption                 │
 │  ✓ Built-in encryption (always TLS 1.3+)                    │
 │  ✓ Multiplexed streams (no head-of-line blocking)            │
 │  ✓ Connection migration (WiFi ↔ LTE)                         │
@@ -431,7 +582,7 @@ nmap -p 1-65535 <host>    # Port scan
 # Step 3: TCP handshake analysis
 tcpdump -i any -nn -vv host <ip> and port <port>
 ss -tnp dst <ip>:<port>   # Socket state
-netstat -an | grep <port>
+ss -lntp 'sport = :<port>'
 
 # Step 4: Performance analysis
 iperf3 -c <server>                    # Bandwidth test
@@ -534,7 +685,7 @@ Health check endpoints: /health, /healthz, /ready
 │                        L4 LB                                   │
 │  • TCP/UDP level                                              │
 │  • Faster (no payload parsing)                                │
-│  • No SSL termination (passthrough) or separate SSL LB        │
+│  • No TLS termination (passthrough) or a separate TLS proxy   │
 │  • Examples: AWS NLB, IPVS, HAProxy TCP mode                  │
 ├────────────────────────────────────────────────────────────────┤
 │                        L7 LB                                   │
@@ -751,14 +902,14 @@ gnmi_get -target 10.0.0.1 -port 57400 \
 | **tcpdump** | Packet capture | `tcpdump -i eth0 -nn -w cap.pcap` |
 | **Wireshark** | GUI packet analysis | Open cap.pcap |
 | **iperf3** | Bandwidth test | `iperf3 -c server -P 4 -t 60` |
-| **netstat/ss** | Socket state | `ss -tnp state established` |
+| **ss** | Socket state | `ss -tnp state established` |
 | **nmap** | Port scan, fingerprint | `nmap -sV -p- host` |
 | **dig/nslookup** | DNS queries | `dig +trace example.com` |
 | **curl** | HTTP testing | `curl -vLk https://example.com` |
 | **httping** | HTTP latency | `httping -g https://example.com` |
 | **iperf3/nuttcp** | Network throughput | — |
 | **ethtool** | NIC/driver stats | `ethtool -S eth0` |
-| **ip / ifconfig** | Interface config | `ip addr show` |
+| **ip** | Interface and route state | `ip -br addr`; `ip route get <destination>` |
 | **tcpdump** | Capture | `tcpdump -i any port 443` |
 | **bmon/nload** | Live bandwidth | — |
 | **nethogs** | Per-process bandwidth | — |
@@ -828,7 +979,7 @@ Async event replication between regions
 
 ## 2.14 Exercises
 
-### Exercise 1: Subnet Design
+### Exercise 1 — Foundation: Subnet Design
 You have `10.0.0.0/16`. Design subnets for:
 - Management (need 100 hosts)
 - Web Tier (need 500 hosts)
@@ -838,7 +989,7 @@ You have `10.0.0.0/16`. Design subnets for:
 
 Provide subnets in CIDR with first usable host, last usable host, broadcast.
 
-### Exercise 2: BGP Path Selection
+### Exercise 2 — Applied: BGP Path Selection
 Given these BGP routes to `203.0.113.0/24`:
 - Route A: AS_PATH [65001 65002], LOCAL_PREF 100, MED 50
 - Route B: AS_PATH [65001 65003 65002], LOCAL_PREF 200, MED 100
@@ -846,21 +997,21 @@ Given these BGP routes to `203.0.113.0/24`:
 
 Which wins? Walk through the decision tree.
 
-### Exercise 3: TCP Analysis
+### Exercise 3 — Applied: TCP Analysis
 You see 15% packet loss on a long-distance TCP connection. Using BBR vs Cubic, what's the expected throughput? Calculate using Mathis formula:
 `B = (MSS / RTT) * (1 / sqrt(p))`
 - MSS = 1460 bytes
 - RTT = 100ms
 - p (loss rate) = 0.15
 
-### Exercise 4: TLS 1.3 Migration
+### Exercise 4 — Advanced: TLS 1.3 Migration
 You're migrating 200 microservices from TLS 1.2 to TLS 1.3 with mTLS. Write an Architecture Decision Record covering:
 - Why migrate (security, performance)
 - Rollout strategy (canary, phased)
 - Risks (compatibility, cert rotation)
 - Rollback plan
 
-### Exercise 5: Troubleshooting Scenario
+### Exercise 5 — Advanced: Troubleshooting Scenario
 A user reports: "Sometimes my connection to `api.example.com` takes 10s, sometimes 100ms." 
 - Walk through your investigation steps
 - What data would you collect?
@@ -878,12 +1029,16 @@ A user reports: "Sometimes my connection to `api.example.com` takes 10s, sometim
 - *Site Reliability Engineering* — Google (Ch. 6, 13)
 
 ### Standards & RFCs
-- **RFC 793** — TCP
-- **RFC 8200** — IPv6
-- **RFC 8446** — TLS 1.3
-- **RFC 9000** — QUIC
-- **RFC 4271** — BGP-4
-- **RFC 2328** — OSPF v2
+- [RFC 9293 — Transmission Control Protocol](https://www.rfc-editor.org/rfc/rfc9293.html) (obsoletes RFC 793)
+- [RFC 8200 — Internet Protocol, Version 6](https://www.rfc-editor.org/rfc/rfc8200.html)
+- [RFC 8201 — Path MTU Discovery for IPv6](https://www.rfc-editor.org/rfc/rfc8201.html)
+- [RFC 8446 — TLS 1.3](https://www.rfc-editor.org/rfc/rfc8446.html)
+- [RFC 9000 — QUIC](https://www.rfc-editor.org/rfc/rfc9000.html)
+- [RFC 4271 — BGP-4](https://www.rfc-editor.org/rfc/rfc4271.html)
+- [RFC 6811 — BGP Prefix Origin Validation](https://www.rfc-editor.org/rfc/rfc6811.html)
+- [RFC 2328 — OSPFv2](https://www.rfc-editor.org/rfc/rfc2328.html)
+- [RFC 1918 — Address Allocation for Private Internets](https://www.rfc-editor.org/rfc/rfc1918.html)
+- [RFC 5737 — IPv4 Address Blocks for Documentation](https://www.rfc-editor.org/rfc/rfc5737.html)
 
 ### Online Resources
 - [Cloudflare Learning Center](https://www.cloudflare.com/learning/)

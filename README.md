@@ -78,6 +78,15 @@ By completing this handbook, you will:
 | B | [Recommended Resources & References](./appendices/resources.md) |
 | C | [Architecture Decision Record Templates](./appendices/adr-templates.md) |
 | D | [System Design Checklist](./appendices/system-design-checklist.md) |
+| E | [Exercise Solutions and Evaluation Guides](./appendices/exercise-solutions.md) — Chapters 1–15 complete |
+| F | [Troubleshooting Playbooks](./appendices/troubleshooting-playbooks.md) — 11 production failure modes |
+
+### Practical Examples
+
+The [practical examples collection](./examples/README.md) turns the handbook's
+patterns into small, verifiable labs: network diagnosis, PostgreSQL index
+analysis, cache stampede protection, idempotent message consumption,
+OpenTelemetry instrumentation, and Kubernetes rollout/rollback.
 
 ---
 
@@ -128,6 +137,7 @@ graph TD
 ### As a Course
 - Each chapter includes: **Learning objectives**, **key concepts**, **diagrams**, **code examples**, **exercises**, **further reading**
 - Complete the **exercises** at the end of each chapter
+- Run the matching [practical examples](./examples/README.md) and inject their documented failure scenarios
 - Build the **capstone project** (see [Capstone Guide](./CAPSTONE.md))
 
 ### As Interview Prep

@@ -1,6 +1,7 @@
 # Chapter 7: Message Queues & Event-Driven Architecture
 
-> **Estimated Time: 3-4 hours** | **Prerequisites: Chapters 1-6**
+> **Estimated Time:** 4–6 hours | **Prerequisites:** Chapters 1–6<br>
+> **Last reviewed:** 2026-08-31 | **Level:** Foundation → applied → production judgment
 
 ---
 
@@ -11,7 +12,7 @@ By the end of this chapter, you will be able to:
 1. **Distinguish message queues, pub/sub, and event streaming**
 2. **Choose the right messaging pattern** for a given use case
 3. **Design event-driven systems** with proper ordering and delivery guarantees
-4. **Implement reliable consumers** with offset management and exactly-once processing
+4. **Implement reliable consumers** with explicit retry, offset, idempotency, and reconciliation boundaries
 5. **Architect Kafka-based** data pipelines for real-time analytics
 6. **Handle backpressure** in asynchronous workflows
 7. **Troubleshoot common patterns** such as poison messages, replay, consumer lag, and duplicate delivery
@@ -220,7 +221,8 @@ Persistence: queue/message durability
 Ack model: manual ack, requeue on reject (DLQ)
 Ordering: per-queue (1 consumer at a time -> strict)
 Routing: exchange -> queue bindings
-Delivery: at-least-once by default
+Delivery: depends on publisher confirms, durability, acknowledgements, retry,
+          expiry, and dead-letter configuration
 ```
 
 ```python
@@ -250,12 +252,12 @@ SQS QUEUE TYPES:
 ┌────────────────────┬────────────────────┬────────────────────┐
 │                     │ Standard           │ FIFO              │
 ├────────────────────┼────────────────────┼────────────────────┤
-│ Throughput          │ Nearly unlimited   │ 300 ops/sec       │
+│ Throughput          │ Service quota and workload dependent    │
 │ Delivery order      │ Best-effort        │ Strict FIFO       │
 │ Deduplication       │ No                 │ Content-based dedup│
 │ Latency             │ Slightly lower     │ Higher            │
-│ Use when            │ High throughput    │ Exactly-once,     │
-│                     │ order not critical │ order matters     │
+│ Use when            │ High throughput    │ ordered processing│
+│                     │ order not critical │ per message group │
 └────────────────────┴────────────────────┴────────────────────┘
 ```
 
@@ -410,15 +412,16 @@ Data types commonly handled by Kafka:
 
 ### Delivery guarantees in Kafka
 
-- At-most-once: producer disables retries and acks=0; consumer auto commits immediately
-- At-least-once: producer enables retries with acks=all; consumer commits after processing and is idempotent
-- Effectively-exactly-once: producer and consumer support idempotent processing plus transactional writes
+- At-most-once attempt: acknowledge or advance before processing; a crash can lose work
+- At-least-once attempt: retry and advance only after processing; duplicates remain possible
+- Kafka transactional scope: atomically consume and produce Kafka records when configured correctly
+- Effectively-once business outcome: enforce an idempotency/business key at every external side effect
 
 ---
 
 ## 7.8 Delivery Semantics and Idempotency
 
-### Exactly-once processing is a property of the consumer, not the broker
+### Atomicity Has a Boundary
 
 ```python
 def process(record):
@@ -427,7 +430,11 @@ def process(record):
         store_offset(record.offset, transaction=True)
 ```
 
-This is the correct pattern: state change and offset commit happen in one transaction. On restart, reprocessing is bounded by already committed offsets and safe to rerun.
+This pattern works only when `store_offset` uses the same transactional
+database as the state change and partition ownership is handled correctly. A
+Kafka offset commit and an unrelated database transaction are not atomic. Use
+Kafka transactions for Kafka-to-Kafka flows, or an inbox/outbox and a unique
+business key for external state.
 
 ### Duplicates remain possible
 
@@ -436,20 +443,22 @@ Even with Kafka EOS, producers can retry and yield duplicate writes. Consumers c
 ```python
 def handle_order_event(event):
     event_id = event["event_id"]
-    if processed_table.contains(event_id):
-        return
     with db.transaction():
+        # A UNIQUE constraint makes concurrent duplicate claims atomic.
+        if not processed_table.try_insert(event_id):
+            return
         apply(event)
-        processed_table.insert(event_id)
 ```
 
 ### Poison messages and DLQs
 
-Retry a configurable number of times. After that, route the offending record to a dead-letter queue for human review or quarantined processing.
+Retry only failures classified as transient and only within a bounded time
+budget. Quarantine permanent or poison records with enough context to replay
+them safely; define an owner and a maximum acceptable age.
 
 ```text
 Recommended pattern:
-  max 5 automatic retries with exponential backoff
+  bounded automatic retries with exponential backoff and jitter
   then move to <topic-name>.dlq
   maintain failure reason, original timestamp, original offset
   alert on DLQ depth to trigger triage
@@ -572,8 +581,8 @@ Must-track metrics for messaging infrastructure:
 
 ### Disaster recovery practices
 
-- enforce replication factor >= 3 for production topics
-- enable producer acks=all for required delivery guarantees
+- select replication factor and minimum in-sync replicas from the failure model
+- use producer acknowledgements and idempotence that match the durability requirement
 - design topics for idempotent consumers so replay is cheap
 - scripted restore: producers replay from persisted offset instead of reprocessing the exact same business events
 - isr shrink policy tuned to fail fast enough to keep SLO
@@ -584,14 +593,14 @@ Kafka operations checklist:
   - configure log retention to meet replay needs
   - enable tiered storage for long-lived large topics
   - set JMX port and integrate with Prometheus exporter
-  - update inter.broker.protocol.version before rolling restart
+  - follow the deployed release's official rolling-upgrade procedure
 ```
 
 ---
 
 ## 7.13 Exercises
 
-### Exercise 1: Pattern selection
+### Exercise 1 — Foundation: Pattern Selection
 
 For each scenario, choose the appropriate messaging tool and justify:
 - task-based image processing pipeline
@@ -600,15 +609,15 @@ For each scenario, choose the appropriate messaging tool and justify:
 - notification service sending email and SMS
 - IoT telemetry ingestion and aggregation
 
-### Exercise 2: Idempotency design
+### Exercise 2 — Applied: Idempotency Design
 
 Design an idempotent consumer for orders that may be retried. Include offset commit, idempotency key handling, and a DLQ strategy.
 
-### Exercise 3: Backpressure design
+### Exercise 3 — Applied: Backpressure Design
 
 A producer can burst up to 200k records per second. Each consumer processes roughly 5k records per second. Design backpressure and scaling mechanisms using Kafka.
 
-### Exercise 4: Reliability design
+### Exercise 4 — Advanced: Reliability Design
 
 Design a cross-region Kafka deployment. Answer:
 - replication strategy for geo resilience
@@ -630,7 +639,7 @@ Design a cross-region Kafka deployment. Answer:
 ## 7.15 Summary Checklist
 
 - [ ] can explain when to use queues vs pub/sub vs streaming
-- [ ] can design transactional producer and consumer with exactly-once semantics
+- [ ] can state the atomicity boundary and design an effectively-once business outcome
 - [ ] can choose partition count for a new topic
 - [ ] can describe replay scenarios and their operational requirements
 - [ ] can reason about consumer lag and its causes
@@ -643,4 +652,3 @@ Design a cross-region Kafka deployment. Answer:
 ---
 
 > Next: [Chapter 8: Load Balancing & Traffic Management](./08-load-balancing-traffic-management.md)
-```

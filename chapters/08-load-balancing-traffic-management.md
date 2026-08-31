@@ -1,6 +1,7 @@
 # Chapter 8: Load Balancing & Traffic Management
 
-> **Estimated Time: 3-4 hours** | **Prerequisites: Chapters 1-7**
+> **Estimated Time:** 4–6 hours | **Prerequisites:** Chapters 1–7<br>
+> **Last reviewed:** 2026-08-31 | **Level:** Foundation → applied → production judgment
 
 ---
 
@@ -31,8 +32,8 @@ Single server problems:
 
 Load balancer goals:
   - distribute traffic across healthy instances
-  - hide backend failures from clients
-  - enable zero-downtime deployments
+  - contain some backend failures when enough healthy capacity remains
+  - support disruption-minimized deployments with readiness and draining
   - support session affinity where needed
   - terminate TLS at the edge
 ```
@@ -170,7 +171,7 @@ mixed latency characteristics          least response time
 ACTIVE HEALTH CHECKS:
   load balancer probes backends on schedule
   HTTP, HTTPS, TCP, TLS handshake, gRPC health
-可能的响应: 200/503/closed
+  possible observations: expected status, timeout, refused or reset connection
   failure threshold -> mark unhealthy -> stop sending traffic
   recovery threshold -> mark healthy -> resume traffic
 
@@ -188,10 +189,10 @@ PATH:        /healthz or /ready
 METHOD:      GET
 SUCCESS:     200 OK
 FAILURE:     non-2xx, timeout, connection refused
-INTERVAL:    5-10 seconds
-TIMEOUT:     2 seconds
-HEALTHY FOR: 2 consecutive successes
-UNHEALTHY:   2 consecutive failures
+INTERVAL:    derive from detection-time objective and probe cost
+TIMEOUT:     below interval and based on healthy latency distribution
+HEALTHY FOR: consecutive successes or a recovery window
+UNHEALTHY:   failures sufficient to avoid flapping but meet detection objective
 ```
 
 ### Readiness vs liveness
@@ -199,7 +200,7 @@ UNHEALTHY:   2 consecutive failures
 ```text
 READINESS:
   - is the instance able to serve traffic?
-  - depend on DB connections, cache warmup, migrations
+  - include only dependencies required to serve this traffic class
   - failing readiness stops new traffic but does not kill pod
 
 LIVENESS:
@@ -535,8 +536,8 @@ RETRY:
   - avoid retry storms
 
 TIMEOUT:
-  - aggressive timeouts prevent thread starvation
-  - propagate timeouts upstream and downstream
+  - deadlines must be shorter than the caller's remaining budget
+  - overly short timeouts create retries and false failures; measure distributions
 
 CIRCUIT BREAKER:
   - fail fast when backend is unhealthy
@@ -555,18 +556,18 @@ ACTIVE-PASSIVE:
   - primary handles traffic, standby waits
   - failover requires state migration or promotion
   - better for databases and stateful services
-  - RTO is minutes to hours depending on procedure
+  - measured RTO includes detection, decision, promotion, routing, and validation
 
 ACTIVE-ACTIVE:
   - multiple backends receive traffic simultaneously
   - failover is mostly automatic
   - requires stateless or synchronized state
-  - RTO is seconds or less
+  - routing may be fast, but state/dependency recovery still determines RTO
 
 MULTI-AZ:
   - replicate across zones in a region
   - LB spans AZs and avoids failed zones
-  - standard for production cloud deployments
+   - common when the service and all critical dependencies tolerate zone failure
 
 MULTI-REGION:
   - global load balancing across regions
@@ -668,32 +669,32 @@ MISCONFIGURATIONS TO AVOID:
    failing to exercise the real dependency path
    probes pass while production traffic fails
 
-9. TLS only at edge, not between services
-   intercepts in mesh without mTLS
-   security theater, not zero trust
+9. Trust based only on network location
+   edge TLS does not authenticate every internal workload
+   choose workload identity, authorization, segmentation, and encryption from the threat model
 ```
 
 ---
 
 ## 8.13 Exercises
 
-### Exercise 1
+### Exercise 1 — Foundation: Algorithm Selection
 
 A platform has 12 app servers behind a load balancer. Requests are 50ms on average, but some take up to 4 seconds. The team wants to add 6 servers. Choose the most suitable load balancing algorithm and justify your choice.
 
-### Exercise 2
+### Exercise 2 — Applied: Health Checks
 
 Design a health check strategy for a service depending on PostgreSQL and Redis. Include success criterion, interval, timeout, thresholds, and probe isolation.
 
-### Exercise 3
+### Exercise 3 — Advanced: Global Routing
 
 You operate API in three regions: US, EU, and APAC. Database is active in US and read-only in others. Design a global route strategy that routes write traffic to US and read traffic regionally while supporting failover.
 
-### Exercise 4
+### Exercise 4 — Applied: Performance Investigation
 
 A release causes endpoint latency to increase from 120ms to 800ms after scaling. List likely causes and a structured debug process from the LB outward.
 
-### Exercise 5
+### Exercise 5 — Advanced: Proxy Design
 
 Design a reverse proxy configuration for:
 - HTTP to HTTPS redirect

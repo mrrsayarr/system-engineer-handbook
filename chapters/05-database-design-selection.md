@@ -1,6 +1,7 @@
 # Chapter 5: Database Design & Selection
 
-> **Estimated Time: 4-5 hours** | **Prerequisites: Chapters 1-4, SQL basics**
+> **Estimated Time:** 6–8 hours | **Prerequisites:** Chapters 1–4 and SQL basics<br>
+> **Last reviewed:** 2026-08-31 | **Level:** Foundation → applied → production judgment
 
 ---
 
@@ -8,12 +9,12 @@
 
 By the end of this chapter, you will be able to:
 
-1. **Choose the right database** for any workload (SQL, NoSQL, NewSQL)
+1. **Build an evidence-based database shortlist** from workload and correctness requirements
 2. **Design normalized and denormalized schemas** purposefully
 3. **Apply indexing strategies** that match query patterns
 4. **Understand ACID vs BASE** trade-offs in real systems
 5. **Implement replication** patterns for high availability
-6. **Migrate schemas** safely with zero downtime
+6. **Plan backward-compatible schema changes** with measured lock and rollback risk
 7. **Tune database performance** for production workloads
 
 ---
@@ -63,8 +64,8 @@ By the end of this chapter, you will be able to:
 | **PostgreSQL** | RDBMS | Strong (ACID) | Vertical + read replicas | General-purpose, complex queries |
 | **MySQL** | RDBMS | Strong (ACID) | Vertical + Vitess sharding | Web apps, OLTP |
 | **MongoDB** | Document | Tunable | Sharding built-in | Flexible schema, document model |
-| **Cassandra** | Wide-column | Tunable (eventual) | Petabyte-scale linear | IoT, time-series, write-heavy |
-| **Redis** | KV (in-mem) | Strong / async | Cluster mode | Cache, sessions, pub/sub |
+| **Cassandra** | Wide-column | Tunable | Horizontal partitioning | High-write workloads designed around known queries |
+| **Redis** | In-memory data store | Command execution is local/serialized; replication is normally asynchronous | Cluster mode | Cache, ephemeral state, streams |
 | **DynamoDB** | KV + Document | Tunable | Auto-scaling | Serverless, predictable latency |
 | **CockroachDB** | Distributed SQL | Strong (serializable) | Horizontal | Global SQL, geo-distribution |
 | **TiDB** | Distributed SQL | Strong | Horizontal | MySQL-compatible distributed |
@@ -74,7 +75,7 @@ By the end of this chapter, you will be able to:
 | **Snowflake** | Cloud DW | Strong | Serverless | Data warehousing |
 | **Neo4j** | Graph | ACID | Clustering | Social, recommendations |
 | **InfluxDB** | TSDB | Tunable | Clustering | Metrics, monitoring |
-| **S3 / Object** | Object | Strong (per object) | Infinite | Files, backups, data lake |
+| **Object storage** | Object | Provider-specific consistency and durability contract | Provider-managed | Files, backups, data lake |
 
 ---
 
@@ -89,7 +90,7 @@ By the end of this chapter, you will be able to:
 │  Client Connections (libpq)                                     │
 │         │                                                       │
 │         ▼                                                       │
-│  Postmaster (Connection Multiplexer)                            │
+│  Postmaster (accepts connections, starts backend processes)     │
 │         │                                                       │
 │         ▼                                                       │
 │  ┌──────────────┐                                               │
@@ -127,8 +128,8 @@ ALTER TABLE accounts ADD CONSTRAINT positive_balance
 -- Isolation: Configurable per transaction
 SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 
--- Durability: WAL + fsync guarantees
--- PostgreSQL writes to WAL before committing, fsync on commit
+-- Durability depends on WAL, fsync, synchronous_commit, storage behavior,
+-- replication policy, and which failure scope the requirement covers.
 ```
 
 ### Isolation Levels
@@ -139,8 +140,7 @@ SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  READ UNCOMMITTED ← Weakest                                    │
-│    • Sees uncommitted changes (dirty reads)                    │
-│    • Almost never used                                          │
+│    • SQL-standard level; PostgreSQL treats it as READ COMMITTED│
 │                                                                 │
 │  READ COMMITTED (PostgreSQL default)                            │
 │    • Only sees committed data                                  │
@@ -149,13 +149,13 @@ SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 │                                                                 │
 │  REPEATABLE READ                                                │
 │    • Snapshot at transaction start                              │
-│    • Possible: phantom reads (in PG, no — uses index snapshot) │
+│    • PostgreSQL prevents non-repeatable and phantom reads       │
 │    • Write skew possible                                        │
 │                                                                 │
 │  SERIALIZABLE (PostgreSQL uses SSI)                             │
 │    • True serializable, no anomalies                           │
 │    • May abort conflicting transactions                         │
-│    • Highest correctness, lower throughput                     │
+│    • Requires retry handling for serialization failures        │
 │                                                                 │
 │  Anomalies to prevent:                                          │
 │    • Dirty reads, Non-repeatable reads, Phantom reads          │
@@ -215,13 +215,13 @@ CREATE TABLE order_summary (
 
 ```sql
 -- GOOD PRACTICES:
--- 1. Use UUID v7 or BIGINT for primary keys (avoid UUID v4 in B-tree)
--- 2. created_at, updated_at, deleted_at timestamps on every table
+-- 1. Choose keys from access, locality, exposure, and generation requirements
+-- 2. Add lifecycle timestamps only when the domain or operations need them
 -- 3. Use TIMESTAMPTZ not TIMESTAMP (timezone-aware)
 -- 4. Use NUMERIC for money, never FLOAT
 -- 5. Use ENUM sparingly; prefer VARCHAR + check constraints
 -- 6. Foreign keys with ON DELETE behavior (CASCADE, RESTRICT, SET NULL)
--- 7. Index all foreign keys + frequently queried columns
+-- 7. Index foreign keys and queried columns when measured access paths justify it
 -- 8. Use partial indexes for sparse data
 -- 9. Add comments on tables and key columns
 -- 10. Version your schema (use migrations, never ad-hoc)
@@ -229,7 +229,7 @@ CREATE TABLE order_summary (
 -- BAD PRACTICES:
 -- ✗ Storing comma-separated values in VARCHAR
 -- ✗ Storing JSON without structure
--- ✗ Using UUID v4 (random) as primary key in B-tree (write amplification)
+-- ✗ Choosing random keys without evaluating index locality and storage cost
 -- ✗ Storing dates as strings
 -- ✗ Storing money as float/double
 -- ✗ Boolean traps (status = 0/1/2/3/4 instead of enum)
@@ -252,7 +252,7 @@ ALTER TABLE users ADD COLUMN name VARCHAR(255);
 CREATE INDEX idx_users_email ON users(email);
 ```
 
-### Zero-Downtime Migrations
+### Online, Backward-Compatible Migrations
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -274,14 +274,14 @@ CREATE INDEX idx_users_email ON users(email);
 │    • Stop writing to old                                        │
 │    • Drop old column/table                                     │
 │                                                                 │
-│  ✓ No downtime                                                  │
-│  ✓ Reversible at every step                                    │
+│  ✓ Can avoid planned downtime when locks, backfill and deploys are controlled│
+│  ✗ Not automatically reversible after destructive writes or cleanup│
 │  ✗ Requires discipline and dual-code paths                     │
 └─────────────────────────────────────────────────────────────────┘
 
 Example: Rename column "name" → "full_name"
   EXPAND:  ALTER TABLE users ADD COLUMN full_name VARCHAR(255);
-  MIGRATE: UPDATE users SET full_name = name;  -- backfill
+  MIGRATE: Backfill in bounded, restartable batches
           App writes both name and full_name
   CONTRACT: UPDATE users SET full_name = name WHERE full_name IS NULL;
            App reads full_name only
@@ -319,7 +319,7 @@ CREATE INDEX idx_users_lower_email ON users(LOWER(email));
 | Type | Use Case | Example |
 |------|----------|---------|
 | **B-Tree** | Equality, range, ORDER BY | Default, most cases |
-| **Hash** | Equality only | Faster than B-Tree for = |
+| **Hash** | Equality only | Consider only after measuring against B-tree; fewer access patterns |
 | **GIN** | Full-text, JSONB, arrays | `to_tsvector(col)`, JSONB operators |
 | **GiST** | Geometric, full-text, ranges | PostGIS, range types |
 | **BRIN** | Very large tables with natural order | Time-series logs |
@@ -338,12 +338,13 @@ ORDER BY created_at DESC
 LIMIT 20;
 
 -- Look for:
--- • Seq Scan (BAD if table is large → add index)
--- • Index Scan (GOOD)
--- • Index Only Scan (BEST — no heap fetch)
+-- • Seq Scan can be optimal for small tables or large result fractions
+-- • Index Scan trades index traversal and random heap access for selectivity
+-- • Index Only Scan can avoid heap fetches when visibility and coverage permit
 -- • Sort (acceptable if small result set)
 -- • Nested Loop / Hash Join / Merge Join (depending on data)
--- • Estimated rows vs actual rows (big discrepancy = bad stats)
+-- • Estimated vs actual rows; large differences may indicate stale statistics,
+--   correlation, skew, or an expression the planner cannot estimate well
 
 -- Update statistics
 ANALYZE orders;
@@ -706,17 +707,18 @@ PUBLICATION orders_pub;
 -- Use cases:
 -- • Selective replication (specific tables)
 -- • Cross-version replication
--- • Multi-master setups
--- • Zero-downtime migrations
+-- • Migration and integration pipelines
+-- Native PostgreSQL logical replication is publish/subscribe; bidirectional
+-- or multi-writer designs need additional conflict and sequence management.
 ```
 
 ### Synchronous vs Asynchronous Trade-offs
 
 ```
 SYNCHRONOUS:
-  ✓ No data loss on primary failure (RPO = 0)
+  ✓ Can protect acknowledged transactions within the configured failure scope
   ✗ Higher write latency (waits for replica ack)
-  ✗ Lower availability (replica must be up)
+  ✗ Availability depends on quorum policy and healthy synchronous standbys
 
 ASYNCHRONOUS:
   ✓ Fast writes, high availability
@@ -728,8 +730,9 @@ SEMI-SYNCHRONOUS:
   ✓ Used by MySQL, AWS RDS Multi-AZ
 
 CONFIGURATION:
-  PostgreSQL synchronous_standby_names = 'node2,node3' (quorum)
-  MySQL rpl_semi_sync_master_wait_for_slave_count = 2
+  PostgreSQL synchronous_standby_names = 'ANY 1 (node2,node3)'
+  MySQL terminology and variable names depend on the deployed release;
+  verify against that version's official replication documentation.
 ```
 
 ---
@@ -738,36 +741,24 @@ CONFIGURATION:
 
 ### PostgreSQL Configuration
 
+The following parameters are an investigation checklist, not a production
+configuration. Defaults and safe values depend on the PostgreSQL release,
+memory concurrency, storage, workload, and failover design. Benchmark changes
+with a rollback plan and observe tail latency, WAL, checkpoints, and vacuum.
+
 ```ini
-# postgresql.conf (key parameters)
+# Inspect before changing
+SHOW shared_buffers;
+SHOW work_mem;                 # budget per sort/hash operation, not per server
+SHOW max_connections;
+SHOW max_wal_size;
+SHOW checkpoint_completion_target;
+SHOW random_page_cost;
+SHOW effective_io_concurrency;
+SHOW autovacuum;
 
-# Memory
-shared_buffers = 25% of RAM          # e.g., 8GB on 32GB RAM
-work_mem = '64MB'                     # per-operation sort/hash
-maintenance_work_mem = '1GB'          # for VACUUM, CREATE INDEX
-effective_cache_size = 75% of RAM     # query planner hint
-huge_pages = try
-
-# WAL
-wal_buffers = '64MB'
-checkpoint_completion_target = 0.9
-max_wal_size = '4GB'
-min_wal_size = '1GB'
-
-# Connections
-max_connections = 200                 # use pgbouncer above this
-random_page_cost = 1.1                # SSD
-effective_io_concurrency = 200        # SSD
-
-# Parallelism
-max_worker_processes = 16
-max_parallel_workers_per_gather = 4
-max_parallel_workers = 16
-
-# Autovacuum
-autovacuum = on
-autovacuum_vacuum_scale_factor = 0.1
-autovacuum_analyze_scale_factor = 0.05
+# Pair configuration review with pg_stat_database, pg_stat_bgwriter,
+# pg_stat_wal, pg_stat_user_tables, pg_stat_statements, and OS metrics.
 ```
 
 ### Slow Query Investigation
@@ -805,7 +796,7 @@ ORDER BY idx_scan DESC;
 APPLICATION SIDE:
   • Use connection pool (HikariCP, PgBouncer, pgx pool)
   • Set pool size based on capacity calculation
-  • Use prepared statements (avoid SQL injection + plan caching)
+  • Use parameterized statements for injection safety; evaluate prepared-plan behavior separately
   • Close connections properly
   • Implement health checks
 
@@ -923,11 +914,12 @@ Examples:
   Tier 4 (archive): RTO 24 hr, RPO 24 hr
 
 DR Strategies:
-  Backup & Restore: RTO hours, RPO hours
-  Pilot Light: RTO minutes, RPO minutes (minimal version always running)
-  Warm Standby: RTO minutes, RPO seconds (scaled-down version running)
-  Hot Site: RTO seconds, RPO ~0 (full duplicate running)
-  Multi-Region Active-Active: RTO ~0, RPO ~0
+  Backup & Restore: usually slower; determined by restore tests and backup cadence
+  Pilot Light: core data/services ready, but scale-up and validation take time
+  Warm Standby: reduced-capacity stack; failover includes routing and correctness checks
+  Hot Standby: near-full capacity; replication and failover can still lose availability
+  Multi-Region Active-Active: reduces some failover work but adds conflict,
+                              partition, dependency, and correlated-failure risks
 ```
 
 ### Backup Verification
@@ -936,13 +928,13 @@ DR Strategies:
 # 1. Regular restore tests (DON'T skip!)
 pg_restore -d test_db /backups/prod_backup.dump
 
-# 2. Checksum verification
-sha256sum /backups/prod_backup.dump > /backups/prod_backup.sha256
+# 2. Checksum verification (create at backup time, verify before restore)
+sha256sum -c /backups/prod_backup.sha256
 
 # 3. Point-in-time recovery test
 # Restore base backup + replay WAL to specific time
 restore_command = 'cp /wal_archive/%f %p'
-recovery_target_time = '2024-01-15 14:30:00 UTC'
+recovery_target_time = '2026-08-30 14:30:00 UTC'
 
 # 4. Monitor backup success in production
 # Alert on missing/failed backups
@@ -980,11 +972,11 @@ recovery_target_time = '2024-01-15 14:30:00 UTC'
 │  ✗  ORM misuse (lazy loading in loops)                          │
 │     → Eager loading, joins, batch fetch                         │
 │                                                                 │
-│  ✗  Missing foreign key constraints                              │
-│     → Always declare referential integrity                      │
+│  ✗  Missing ownership of referential integrity                  │
+│     → Prefer constraints; document and test deliberate exceptions│
 │                                                                 │
-│  ✗  Storing aggregated data without storing raw                 │
-│     → Or use materialized views                                 │
+│  ✗  Aggregates without a rebuild or reconciliation path         │
+│     → Retain a suitable source or define another recovery source│
 │                                                                 │
 │  ✗  No monitoring or alerting                                   │
 │     → Track QPS, latency, connections, locks                    │
@@ -1045,7 +1037,7 @@ START: Analytics workload?
 
 ## 5.14 Exercises
 
-### Exercise 1: Database Selection
+### Exercise 1 — Foundation: Database Selection
 For each workload, choose the database and justify:
 - Banking transactions (strict ACID, regulatory)
 - IoT sensor data (10M devices, high write rate)
@@ -1054,7 +1046,7 @@ For each workload, choose the database and justify:
 - Real-time analytics dashboard (10K events/sec)
 - Shopping cart (high concurrency, low latency)
 
-### Exercise 2: Schema Design
+### Exercise 2 — Applied: Schema Design
 Design schema for:
 - Multi-tenant SaaS (1000 tenants, 10M users total)
 - E-commerce with orders, products, inventory
@@ -1062,14 +1054,14 @@ Design schema for:
 
 Include indexes, partitioning strategy, and access patterns.
 
-### Exercise 3: Migration Plan
+### Exercise 3 — Advanced: Migration Plan
 Plan migration from:
 - Single PostgreSQL (10TB, 5K QPS) to CockroachDB
 - MySQL with read replicas to Vitess sharded
 
 Include: phase plan, risk analysis, rollback strategy, data verification.
 
-### Exercise 4: Performance Tuning
+### Exercise 4 — Applied: Performance Investigation
 A PostgreSQL query takes 30 seconds:
 ```sql
 SELECT u.email, COUNT(o.id) as order_count
@@ -1084,7 +1076,7 @@ LIMIT 100;
 - Rewrite if needed
 - Estimate performance improvement
 
-### Exercise 5: DR Design
+### Exercise 5 — Advanced: DR Design
 For a financial application:
 - RTO: 5 minutes
 - RPO: 0 (no data loss)
@@ -1130,7 +1122,7 @@ Design the DR architecture with:
 
 ## 5.16 Summary Checklist
 
-- [ ] Can choose appropriate database for any workload
+- [ ] Can build and validate a database shortlist from workload requirements
 - [ ] Understand ACID properties deeply
 - [ ] Can design normalized (3NF) schemas
 - [ ] Know when to denormalize and how
@@ -1138,10 +1130,10 @@ Design the DR architecture with:
 - [ ] Can use EXPLAIN to optimize queries
 - [ ] Understand CAP trade-offs across database types
 - [ ] Can implement sync vs async replication
-- [ ] Know how to migrate schemas with zero downtime
+- [ ] Can plan backward-compatible migrations and quantify lock/backfill risk
 - [ ] Can design backup and DR strategy
 - [ ] Understand connection pooling and management
-- [ ] Can apply zero-downtime migration patterns
+- [ ] Can validate online migration, rollback, and reconciliation procedures
 
 ---
 

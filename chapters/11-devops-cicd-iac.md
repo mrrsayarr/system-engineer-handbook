@@ -1,6 +1,7 @@
 # Chapter 11: DevOps, CI/CD & Infrastructure as Code
 
-> **Estimated Time: 3-4 hours** | **Prerequisites: Chapters 1-10**
+> **Estimated Time:** 4–6 hours | **Prerequisites:** Chapters 1–10<br>
+> **Last reviewed:** 2026-08-31 | **Level:** Foundation → applied → production judgment
 
 ---
 
@@ -74,6 +75,19 @@ COMPLICATED SUBSYSTEM TEAMS:
 
 ### Pipeline anatomy
 
+```mermaid
+flowchart LR
+    C[Commit] --> V[Fast validation]
+    V --> B[Reproducible build]
+    B --> A[(Immutable artifact + SBOM)]
+    A --> T[Integration and policy gates]
+    T --> P[Promote same artifact]
+    P --> D[Progressive deployment]
+    D --> O{SLO and business signals healthy?}
+    O -->|Yes| R[Continue rollout]
+    O -->|No| X[Stop, rollback or roll forward]
+```
+
 ```text
 CODE:
   developer commits to version control
@@ -122,7 +136,7 @@ RELIABLE:
 ```text
 TRUNK-BASED:
   short-lived branches or feature flags
-  main branch always releasable
+  main branch is kept releasable through small changes and enforced gates
   encourages continuous integration
   best for high frequency releases
 
@@ -145,7 +159,7 @@ GITHUB FLOW / GITLAB FLOW:
 
 ```text
 IMMUTABLE:
-  instances are never changed in place
+  normal updates replace artifacts or instances instead of mutating them
   update by replacing artifacts and instances
   no snowflake drift
   reproducibility is natural
@@ -164,12 +178,12 @@ HCL workflow:
   write configuration defining desired state
   terraform plan shows diff
   terraform apply enforces desired state
-  state is the contract for current reality
+  state maps managed objects; refresh and drift checks test it against reality
 
 STATE:
   store in remote backend with locking
   sensitive values protected by encryption
-  never edit manually unless forced
+  avoid manual state edits; use supported state commands, backups, locking, and review
   use workspaces or separate state files per environment
 
 MODULES:
@@ -327,7 +341,7 @@ AUDIT:
 ```text
 Rolling:
   replace instances gradually
-  keep service available during rollout
+  can keep service available when capacity, readiness, and compatibility are correct
   risk: new version exposed while still buggy
 
 Controls:
@@ -343,7 +357,7 @@ Blue-green:
   two environments: blue and green
   promote new release from staging to idle environment
   cutover load balancer instantly
-  keep previous environment for instant rollback
+  keep previous environment for fast traffic rollback when data changes remain compatible
 
 Costs:
   double capacity during transition window
@@ -373,8 +387,8 @@ Signals:
 
 ```text
 Resource requests:
-  guaranteed minimum CPU and memory
-  scheduler uses requests for bin packing
+  scheduler uses requests for placement and admission decisions
+  CPU request contributes proportional shares under contention; it is not reserved CPU time
 
 Resource limits:
   enforced at container level
@@ -389,7 +403,7 @@ QoS classes:
 Production guidance:
   stateful workloads: requests == limits for memory
   stateless workloads: requests often below limit
-  never set CPU limit lower than observed usage
+  derive CPU limits from throttling behavior, workload isolation, and policy
 ```
 
 ### Networking
@@ -408,7 +422,7 @@ NetworkPolicy:
   default deny all ingress and egress
   allow specific namespaces and pods
   protect database port from app tier
-  zero trust north-south and east-west
+  one layer of segmentation; workload identity and authorization remain separate controls
 ```
 
 ### Observability in Kubernetes
@@ -578,19 +592,19 @@ ANOMALY DETECTION:
 
 ## 11.13 Exercises
 
-### Exercise 1
+### Exercise 1 — Foundation: Delivery Pipeline
 
 Design a CI/CD pipeline for a stateless API service. Include code checkout, security scanning, testing, container build, registry push, deployment target, smoke tests, and rollback automation.
 
-### Exercise 2
+### Exercise 2 — Applied: Infrastructure as Code
 
 Design Terraform module layout for multi-environment, multi-account AWS setup. Include account structure, shared networking, per-service modules, state organization, and policy enforcement.
 
-### Exercise 3
+### Exercise 3 — Advanced: GitOps Delivery
 
 Design GitOps workflow for production Kubernetes cluster. Define repository layout, promotion model, progressive delivery, rollback plan, and configuration separation principles.
 
-### Exercise 4
+### Exercise 4 — Advanced: Drift Control
 
 Identify drift risks for a Kubernetes based platform and design automated mitigations. Include runtime policy, drift detection frequency, remediation automation, and manual exception workflow.
 

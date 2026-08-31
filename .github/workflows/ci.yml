@@ -1,0 +1,161 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Daily link check at 03:00 UTC
+    - cron: '0 3 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  markdown-lint:
+    name: Markdown Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install markdownlint-cli
+        run: npm install --global markdownlint-cli@0.45.0
+
+      - name: Run markdownlint
+        run: markdownlint "**/*.md" --ignore node_modules
+
+  prose-lint:
+    name: Prose Lint (Vale)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Vale
+        run: |
+          if [ -f .vale.ini ]; then
+            curl -fsSL https://api.github.com/repos/errata-ai/vale/releases/latest \
+              | grep -o 'https://[^" ]*vale_[^" ]*_Linux_64-bit.tar.gz' \
+              | head -n 1 \
+              | xargs -r curl -fsSL \
+              | tar -xz -C /tmp
+            sudo install /tmp/vale /usr/local/bin/vale
+            vale --config=.vale.ini .
+          else
+            echo 'No .vale.ini found; skipping Vale.'
+          fi
+
+  link-check:
+    name: Link Check (Lychee)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'pull_request'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Lychee
+        uses: lycheeverse/lychee-action@v1
+        with:
+          args: --verbose --max-concurrency 10 --exclude-mail --remap "https://github.com/mrrsayarr/system-engineer-handbook/blob/main/::" .
+
+  mermaid-render:
+    name: Mermaid Diagram Render Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install mermaid-cli
+        run: npm install --global @mermaid-js/mermaid-cli@11.12.0
+
+      - name: Find and render mermaid diagrams
+        run: |
+          mkdir -p /tmp/mermaid-test
+          find . -name "*.md" -type f -print0 | while IFS= read -r -d '' file; do
+            awk -v source="$file" '
+              BEGIN { name=source; gsub(/[^A-Za-z0-9_.-]/, "_", name) }
+              /^```mermaid[[:space:]]*$/ { in_block=1; n++; out=sprintf("/tmp/mermaid-test/%s-%03d.mmd", name, n); next }
+              in_block && /^```[[:space:]]*$/ { in_block=0; close(out); next }
+              in_block { print > out }
+            ' "$file"
+          done
+          count=0
+          for diagram in /tmp/mermaid-test/*.mmd; do
+            [ -e "$diagram" ] || continue
+            count=$((count + 1))
+            mmdc -i "$diagram" -o "/tmp/mermaid-test/$count.svg" -t neutral
+          done
+          test "$count" -gt 0
+          echo "Validated $count Mermaid diagrams."
+
+  spell-check:
+    name: Spell Check (cspell)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install cspell
+        run: npm install --global cspell@9.2.1
+
+      - name: Run cspell
+        run: if [ -f cspell.json ] || [ -f cspell.config.yaml ] || [ -f cspell.config.yml ]; then cspell "**/*.md" --gitignore --no-progress; else echo 'No cspell configuration found; skipping cspell.'; fi
+
+  link-check-scheduled:
+    name: Scheduled Link Check (Daily)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Lychee (scheduled)
+        uses: lycheeverse/lychee-action@v1
+        with:
+          args: --verbose --max-concurrency 10 --exclude-mail --remap "https://github.com/mrrsayarr/system-engineer-handbook/blob/main/::" .
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Validate PR titles follow conventional commits
+  pr-title:
+    name: PR Title Convention
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Check PR title
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            test
+            chore
+            perf
+            ci
+            build
+            revert
+          requireScope: false
+          subjectPattern: '^.+$'
+          subjectMaxLength: 100

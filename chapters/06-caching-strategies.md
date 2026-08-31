@@ -1,6 +1,7 @@
 # Chapter 6: Caching Strategies
 
-> **Estimated Time: 2-3 hours** | **Prerequisites: Chapters 1-5**
+> **Estimated Time:** 4–6 hours | **Prerequisites:** Chapters 1–5<br>
+> **Last reviewed:** 2026-08-31 | **Level:** Foundation → applied → production judgment
 
 ---
 
@@ -29,7 +30,8 @@ Without cache:
   Load = operations / DB_capacity
 
 With cache:
-  Latency = cache_hit_ratio × cache_latency + (1 - cache_hit_ratio) × DB_latency
+  Mean latency ≈ hit_ratio × cache_latency
+                 + miss_ratio × (cache_lookup + origin_latency + fill_cost)
   Cost = cache_cost + (1 - cache_hit_ratio) × DB_cost
   Load = DB sees only miss traffic
 
@@ -37,7 +39,8 @@ Example: 1000 QPS, 95% cache hit, DB 10ms, cache 1ms
   Without cache: 1000 × 10ms = 10 sec aggregate DB load
   With cache:    50 × 10ms = 0.5 sec aggregate DB load
                  20x DB load reduction
-                 p99 latency: 10ms vs ~10ms (similar avg, much better tail)
+  Percentiles cannot be derived from this weighted mean. Measure hit and miss
+  distributions, queueing, serialization, and the origin behavior under misses.
 ```
 
 ### What to Cache (Cheat Sheet)
@@ -73,7 +76,7 @@ Example: 1000 QPS, 95% cache hit, DB 10ms, cache 1ms
 │  Trade-offs:                                                │
 │    • Closer = faster, but harder to invalidate              │
 │    • Larger = more capacity, but more network hops          │
-│    • Multiple tiers = best perf + correctness               │
+│    • Multiple tiers = lower hit latency but more coherence work│
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -182,12 +185,15 @@ class WriteThroughCache:
     async def update(self, key, value):
         # Write to DB first (source of truth)
         await self.db.update(key, value)
-        # Then update cache (so cache always matches DB)
+        # Then update cache; another writer/failure can still create a race
         await self.cache.set(key, value, ttl=300)
 ```
 
-**Pros**: Cache always in sync, reads always fresh  
+**Pros:** A successful path updates both stores before returning<br>
 **Cons**: Higher write latency, cache failures affect writes
+
+This two-call example is not atomic. Define behavior for a database success
+followed by cache failure, concurrent writers, retry, and cache invalidation.
 
 ### Write-Behind (Write-Back)
 
@@ -577,13 +583,13 @@ location /api/products {
 │                                                             │
 │  Slot 0-5460     Slot 5461-10922    Slot 10923-16383        │
 │  ┌─────────────┐ ┌─────────────┐   ┌─────────────┐          │
-│  │ Master 1    │ │ Master 2    │   │ Master 3    │          │
+│  │ Primary 1   │ │ Primary 2   │   │ Primary 3   │          │
 │  │ + Replica   │ │ + Replica   │   │ + Replica   │          │
 │  └─────────────┘ └─────────────┘   └─────────────┘          │
 │                                                             │
 │  Key routing: CRC16(key) mod 16384 = slot                   │
 │  Client knows topology, routes directly                     │
-│  Replica promotion on master failure                        │
+│  Replica promotion after primary failure                    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -799,7 +805,9 @@ async def get_pii(user_id, requester_id):
     if not await can_access_pii(requester_id, user_id):
         raise PermissionError()
     
-    cache_key = f"pii:{user_id}:{hash(requester_id)}"  # Scoped
+    # Scope by the authorization decision, tenant, and data version. Do not
+    # use a language runtime hash as a security boundary.
+    cache_key = make_authorized_cache_key(user_id, requester_id)
     value = await cache.get(cache_key)
     if value is None:
         value = await db.get_pii(user_id)
@@ -829,7 +837,7 @@ async def get_secure(key):
 # Cache metrics to track:
 cache_hits_total              # Total hits
 cache_misses_total             # Total misses
-cache_hit_ratio = hits / (hits + misses)  # Goal: >90%
+cache_hit_ratio = hits / (hits + misses)  # Target is workload-specific
 cache_evictions_total          # Items evicted (cache pressure)
 cache_memory_used_bytes       # Memory usage
 cache_key_count               # Number of keys
@@ -837,8 +845,8 @@ cache_get_latency_seconds     # Latency histogram
 cache_set_latency_seconds
 cache_errors_total            # Connection errors, etc.
 
-# Per-key metrics for hot keys
-cache_key_hits{key="user:123"}  # Label-based metrics
+# Aggregate by bounded key class; raw keys create unbounded metric cardinality
+cache_hits_total{key_class="user_profile"}
 ```
 
 ### Monitoring Example (Prometheus)
@@ -944,9 +952,9 @@ redis-cli MEMORY USAGE <key>
    → Memory cost, invalidation complexity, low hit ratio
    → Cache only what's hot
 
-2. NO TTL ON KEYS
-   → Memory growth, stale data forever
-   → Always set TTL
+2. NO LIFECYCLE POLICY
+   → Memory growth or stale data without an ownership decision
+   → Use TTL, explicit invalidation, bounded capacity, or durable versioning
 
 3. CACHE OBJECTS THAT CHANGE WITH EVERY REQUEST
    → 0% hit ratio, wasted memory
@@ -958,7 +966,7 @@ redis-cli MEMORY USAGE <key>
 
 5. NOT HANDLING CACHE FAILURES
    → Cascading failure if cache dies
-   → Cache misses should fall back to DB
+   → Use bounded fallback, request coalescing, load shedding, and origin budgets
 
 6. CACHING BIG OBJECTS (>1MB)
    → Network overhead, low hit ratio
@@ -985,7 +993,7 @@ redis-cli MEMORY USAGE <key>
 
 ## 6.14 Exercises
 
-### Exercise 1: Pattern Selection
+### Exercise 1 — Foundation: Pattern Selection
 For each scenario, choose the caching pattern and justify:
 - Product catalog (5M items, updated daily)
 - User session (high write rate, low latency)
@@ -993,21 +1001,21 @@ For each scenario, choose the caching pattern and justify:
 - API responses (read-heavy, medium-sized JSON)
 - Search results (compute-heavy aggregation)
 
-### Exercise 2: Cache Stampede Solution
+### Exercise 2 — Applied: Cache Stampede Solution
 A news site has 10K QPS. Their cache TTL is 60s. When cache expires:
 - All requests hit DB simultaneously
 - DB overwhelmed
 
 Design a multi-layered solution. Include code/config.
 
-### Exercise 3: Invalidation Strategy
+### Exercise 3 — Applied: Invalidation Strategy
 E-commerce platform with 100K products, prices change frequently (sometimes flash sales):
 - Cache key design
 - TTL strategy
 - Invalidation mechanism
 - Coherence across instances
 
-### Exercise 4: Multi-Tier Cache
+### Exercise 4 — Advanced: Multi-Tier Cache
 Design a 3-tier caching strategy for a global SaaS:
 - Tier 1 (browser/CDN)
 - Tier 2 (edge compute)
@@ -1015,7 +1023,7 @@ Design a 3-tier caching strategy for a global SaaS:
 - What goes in each tier
 - Invalidation across tiers
 
-### Exercise 5: Cache Coherence
+### Exercise 5 — Advanced: Cache Coherence
 Two app instances with L1 cache. User A updates via Instance 1, Instance 2 reads via L1.
 - Design invalidation propagation
 - Handle network partitions

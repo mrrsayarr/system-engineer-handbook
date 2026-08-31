@@ -1,6 +1,7 @@
 # Chapter 12: Cloud Platforms (AWS, GCP, Azure)
 
-> **Estimated Time: 4-5 hours** | **Prerequisites: Chapters 1-11**
+> **Estimated Time:** 5–7 hours | **Prerequisites:** Chapters 1–11<br>
+> **Last reviewed:** 2026-08-31 | **Level:** Foundation → applied → production judgment
 
 ---
 
@@ -8,7 +9,7 @@
 
 By the end of this chapter, you will be able to:
 
-1. **Choose the right service category** across AWS, GCP, and Azure for any workload
+1. **Build a justified service shortlist** across AWS, GCP, and Azure
 2. **Design multi-account, multi-region architectures** with shared responsibility
 3. **Implement compute, storage, and networking** with cost and operations in mind
 4. **Use managed services** for databases, messaging, and event streaming
@@ -40,7 +41,20 @@ CUSTOMER:
 THIS MODEL VARIES:
   IaaS shifts more responsibility to customer
   PaaS and serverless shift more to provider
-  SaaS shifts nearly all responsibility except data and users
+  SaaS still leaves customer responsibilities for identity, configuration,
+  data governance, integrations, endpoints, and vendor oversight
+```
+
+```mermaid
+flowchart TD
+    R[Workload requirements] --> C{Need OS or runtime control?}
+    C -->|Yes| I[IaaS or containers]
+    C -->|No| E{Event-driven and bounded execution?}
+    E -->|Yes| S[Serverless candidate]
+    E -->|No| P[PaaS or managed application platform]
+    I --> V[Validate quotas, failure domains, operations and exit plan]
+    S --> V
+    P --> V
 ```
 
 ### Well-architected pillars
@@ -68,7 +82,7 @@ PERFORMANCE EFFICIENCY:
 COST OPTIMIZATION:
   consume only what is needed
   analyze expenditure over time
-  managed services reduce operational cost
+  managed services trade provider price and constraints for selected operational work
 ```
 
 ---
@@ -138,11 +152,11 @@ OBJECT STORAGE ACROSS VENDORS:
   Azure Blob Storage
 
 KEY PROPERTIES:
-  virtually unlimited capacity
-  strong durability typically 11 nines
+  large elastic namespace subject to quotas, request limits, and account policy
+  durability and availability are separate provider- and tier-specific commitments
   lifecycle policies for cost management
   versioning and replication for compliance
-  presigned URLs for temporary access without credentials
+  presigned URLs are time-bounded bearer credentials; protect them from logs and referrers
 ```
 
 ```text
@@ -328,14 +342,14 @@ REHOST:
   does not address optimization
 
 REPLATFORM:
-  move to managed services without architecture change
+  move selected components to managed services with limited application change
   replace self-managed DB with RDS or equivalent
   replace VMs with containers
 
 REFACTOR:
   redesign for cloud native patterns
   serverless, event driven, microservices
-  highest long term value and cost
+  largest change surface; value depends on measured constraints and product horizon
 
 RETIRE:
   identify systems that can be decommissioned
@@ -364,19 +378,19 @@ OPTIMIZATION:
 
 ## 12.10 Exercises
 
-### Exercise 1
+### Exercise 1 — Foundation: Service Selection
 
 Design a multi-tier application on AWS with public and private tiers, database, messaging, caching, and global traffic routing. Explain which services you choose and why.
 
-### Exercise 2
+### Exercise 2 — Advanced: Multi-Region Recovery
 
 Design multi-region failover for a payment API. Include region topology, database replication, global routing, data residency, and failover procedure.
 
-### Exercise 3
+### Exercise 3 — Advanced: Cloud Governance
 
 Design multi-cloud governance model for three environments with separate accounts and central networking. Include account strategy, network connectivity, identity federation, and cost visibility.
 
-### Exercise 4
+### Exercise 4 — Applied: Managed-Service Migration
 
 Migrate a self-managed PostgreSQL and Kafka deployment to managed cloud services. Include migration steps, cutover plan, rollback criteria, and data verification.
 

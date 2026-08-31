@@ -1,6 +1,7 @@
 # Chapter 14: Real-World Case Studies
 
-> **Estimated Time: 3-4 hours** | **Prerequisites: Chapters 1-13**
+> **Estimated Time:** 4–6 hours | **Prerequisites:** Chapters 1–13<br>
+> **Last reviewed:** 2026-08-31 | **Level:** Foundation → applied → production judgment
 
 ---
 
@@ -19,7 +20,22 @@ By the end of this chapter, you will be able to:
 
 ## 14.1 How to Read a Case Study
 
+> **Evidence boundary:** Unless a statement is linked to a primary engineering
+> source, company names indicate the product category that inspired the
+> exercise. Traffic figures, components, and evolution paths are teaching
+> assumptions—not claims about a company's current internal architecture.
+
 ### Framework for analysis
+
+```mermaid
+flowchart LR
+    R[Requirements and invariants] --> S[Scale and workload shape]
+    S --> D[Data and interface design]
+    D --> A[Architecture and critical paths]
+    A --> F[Failure, security and operations]
+    F --> C[Cost and capacity evidence]
+    C --> T[Trade-offs and evolution trigger]
+```
 
 ```text
 FOR EVERY CASE STUDY:
@@ -404,19 +420,19 @@ APPLICATION:
 
 ## 14.10 Exercises
 
-### Exercise 1
+### Exercise 1 — Foundation: Case Decomposition
 
 Use the case study framework to analyze Twitter's transition from Ruby on Rails monolith to microservices. Present distilled lessons applicable to an engineering team designing their first microservice extraction.
 
-### Exercise 2
+### Exercise 2 — Applied: Architecture Evolution
 
 Compare and contrast the news feed approaches of Facebook and X. Identify where divergent requirements produced different architectural choices.
 
-### Exercise 3
+### Exercise 3 — Advanced: Failure Analysis
 
 For a travel booking aggregator, apply lessons learned from Airbnb and Uber to design search and dispatch across flights, hotels, and car rentals. Identify the highest risk architectural decisions and their mitigations.
 
-### Exercise 4
+### Exercise 4 — Advanced: Evidence Review
 
 Select a real production outage from public postmortems. Map its cause to patterns discussed in this book. Recommend a control that would have prevented, reduced, or shortened the incident.
 

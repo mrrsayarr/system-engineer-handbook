@@ -1,6 +1,7 @@
 # Chapter 13: System Engineer Cheat Sheets
 
-> **Estimated Time: 2-3 hours** | **Prerequisites: Chapters 1-12**
+> **Estimated Time:** 3–4 hours | **Prerequisites:** Chapters 1–12<br>
+> **Last reviewed:** 2026-08-31 | **Level:** Operational reference with progressive exercises
 
 ---
 
@@ -13,7 +14,7 @@ This chapter is designed as a **quick reference**. Each sheet answers the questi
 ## 13.1 Scale Estimation Cheat Sheet
 
 ```text
-LATENCY NUMBERS EVERY ENGINEER SHOULD KNOW:
+ILLUSTRATIVE LATENCY ORDERS OF MAGNITUDE (benchmark your hardware/path):
   L1 cache reference                        0.5 ns
   L2 cache reference                        7 ns
   L3 cache reference                       20 ns
@@ -39,9 +40,9 @@ SUFFIXES IN COMPUTING:
 BACK OF THE ENVELOPE FORMULAS:
   daily active users = monthly active users * activity_ratio
   QPS = requests per second = total_requests / seconds
-  peak QPS = 2 to 5 times average depending on diurnal pattern
+  peak QPS = measured peak factor * average QPS
   storage per year = daily_data * 365
-  network per year = storage * replication factor
+  replication traffic = logical writes * remote copies, adjusted for protocol/compression
 ```
 
 ---
@@ -141,7 +142,7 @@ HEALTH CHECK:
 CHOOSE BY GUARANTEE:
   at most once with no backlog          Redis Pub/Sub
   at least once with durable backlog    SQS, RabbitMQ
-  replay and ordered exactly once       Kafka, NATS JetStream, Pulsar
+  replay and per-partition ordering     Kafka, NATS JetStream, Pulsar
 
 ONE MESSAGE MUST REACH MANY:
   RabbitMQ fanout exchange, SNS, Redis Pub/Sub
@@ -149,7 +150,7 @@ ONE MESSAGE MUST REACH ONE CONSUMER ONLY:
   SQS, RabbitMQ direct queue, Redis List
 
 RETENTION REQUIREMENT:
-  unlimited audit or replay    Kafka, Pulsar
+  bounded retained replay      Kafka, Pulsar
   bounded retry                SQS, RabbitMQ with TTL
 ```
 
@@ -202,6 +203,10 @@ TTL GUIDELINES:
 
 ## 13.8 Linux Performance Cheat Sheet
 
+Run read-only commands first. Confirm namespace, cluster/context, permissions,
+data sensitivity, and expected load before packet capture, `exec`, tracing, or
+commands that enumerate other tenants.
+
 ```text
 DISK AND FILESYSTEM:
   df -h
@@ -243,7 +248,7 @@ BASICS:
   kubectl get pods,svc,deploy,nodes -o wide
   kubectl describe pod,node,svc
   kubectl logs deploy/service -c container --previous
-  kubectl exec -it pod -- bash
+  kubectl exec -it pod -- sh  # mutating/debug access; audit and restrict
 
 LIVE DEBUG:
   kubectl top pod,node
@@ -263,8 +268,8 @@ TROUBLESHOOTING:
 
 ```text
 TLS:
-  prefer TLS 1.3 minimum
-  strong cipher suites only
+  prefer TLS 1.3; allow TLS 1.2 only under current compatibility/security policy
+  follow current TLS BCP and platform defaults
   rotate certificates automatically
 
 SECRETS:
@@ -273,8 +278,8 @@ SECRETS:
   audit all access
 
 AUTH:
-  prefer tokens over passwords
-  mTLS between services
+  choose phishing-resistant human auth and short-lived workload credentials
+  use mTLS when workload authentication and transport encryption are required
   least privilege with explicit allow lists
 ```
 
@@ -293,12 +298,10 @@ TCP STATE AND CONNECTIONS:
   ss -s
   ss -tnp state established
   ss -tuln
-  netstat -antup
 
 DNS:
   dig
   dig +trace
-  nslookup
   resolvectl query
 
 TLS:
@@ -335,6 +338,19 @@ ROLLBACK:
 
 ## 13.13 On-Call Runbook Template
 
+```mermaid
+flowchart TD
+    A[Alert or report] --> B[Confirm user impact and scope]
+    B --> C[Declare owner, severity and communication cadence]
+    C --> D{Safe known mitigation?}
+    D -->|Yes| E[Mitigate and verify SLI recovery]
+    D -->|No| F[Compare signals, dependencies and recent changes]
+    F --> G[Run bounded diagnostic test]
+    G --> D
+    E --> H[Monitor, reconcile data and preserve evidence]
+    H --> I[Post-incident learning and tracked actions]
+```
+
 ```text
 INCIDENT RESPONSE:
   1. acknowledge alert
@@ -350,17 +366,17 @@ INVESTIGATION ORDER:
   5. traffic samples, traces, and access logs
 
 MITIGATION BEFORE ROOT CAUSE:
-  - restart if transient
+  - restart only when the failure mode and data-safety impact are understood
   - rollback last change
   - route traffic away from failed region
   - scale out if saturation
   - enable degraded mode if available
 
 COMMUNICATION:
-  every 15 minutes during active incident
+  use a declared cadence appropriate to severity and stakeholder needs
   first message should include impact and triage focus
   update status page when public
-  summary within 24 hours
+  publish the initial summary within the organization's incident policy
 ```
 
 ---
@@ -396,15 +412,15 @@ SCALING ORDER:
 
 ## 13.15 Exercises
 
-### Exercise 1
+### Exercise 1 — Applied: Performance Triage
 
 You manage a payments API experiencing p99 latency of 620ms and error rate above 1%. Use this chapter to build a prioritized investigation checklist covering load balancer, application, runtime, database, messaging, and network urgency based on time to action.
 
-### Exercise 2
+### Exercise 2 — Foundation: Design Checklist
 
 You design a new feature flag service to manage releases and experiments across 80 services. Use this chapter as a checklist for requirement validation, scale estimation, service design decisions, deployment model, failure mode resilience, and monitoring needs.
 
-### Exercise 3
+### Exercise 3 — Advanced: On-Call Runbook
 
 You receive an alert at 2 AM that API latency has exceeded SLO. Build an on-call runbook for this service including triage steps, mitigation tactics in priority order, rollback criteria, and post-incident review template.
 

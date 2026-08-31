@@ -1,6 +1,7 @@
 # Chapter 9: Monitoring, Observability & Alerting
 
-> **Estimated Time: 3-4 hours** | **Prerequisites: Chapters 1-8**
+> **Estimated Time:** 4–6 hours | **Prerequisites:** Chapters 1–8<br>
+> **Last reviewed:** 2026-08-31 | **Level:** Foundation → applied → production judgment
 
 ---
 
@@ -370,13 +371,14 @@ SLA: Service Level Agreement -> business or contractual promise
 ```text
 ERROR BUDGET FORMULA:
   budget = 1 - objective
-  example: 99.9% over 30 days = 43.2 minutes allowable downtime
+  time-based example: 99.9% over 30 days = 43.2 minutes unavailable
+  request-based example: 0.1% of eligible requests may be unsuccessful
 
 BURN RATE:
   how fast budget is consumed
   high burn rate -> freeze risky changes
   moderate burn rate -> proceed with caution
-  low or negative burn rate -> safe to ship
+  low burn rate -> budget consumption alone does not block the planned change
 
 POLICY:
   - budget used for releases, experiments, and infrastructure changes
@@ -390,15 +392,16 @@ POLICY:
 AVAILABILITY SLI:
   successful requests / total requests
   filter out infrastructure load balancer health checks
-  define success by 2xx and selected 3xx only
+  define success from user intent: some 4xx are correct outcomes, while a
+  malformed 2xx response can still fail the user
 
 LATENCY SLI:
   count of requests faster than threshold / total requests
   histogram bucket chosen from customer distribution
-  usually p95 or p99 reflects user-impacting latency
+  prefer threshold compliance for SLO math; percentiles remain useful diagnostics
 
 FRESHNESS SLI:
-  freshness = writes / stale reads over window
+  freshness = eligible reads meeting the maximum-age threshold / eligible reads
   use when cache or materialized view introduces staleness
 ```
 
@@ -544,41 +547,32 @@ LIGHTSTEP / HONEYCOMB / DATADOG:
 OTLP-BASED PIPELINE:
   vendor neutral instrumentation and export
   backends: Prometheus, Tempo, Loki, Jaeger, vendor
-  preferred starting point for new systems
+  preserves backend choice when semantic conventions and export are governed
 ```
 
 ### Storage and retention
 
 ```text
-METRICS:
-  15s resolution -> 30 days hot
-  5m resolution -> 12 months warm
-  1h resolution -> long term
-
-LOGS:
-  hot -> 7 days
-  warm -> 30 days
-  cold -> 1 year with lower query SLA
-
-TRACES:
-  100% with sampling -> 7 days
-  sampled traces -> 30 days
-  avoid infinite retention without cost controls
+Define retention per signal class from incident lookback, legal requirements,
+recovery needs, cardinality, ingest volume, query latency, and cost. Downsample
+metrics only if the retained aggregates still support SLO and capacity queries.
+Use tail/head sampling deliberately for traces, and never rely on a sample to
+preserve mandatory audit evidence. Delete data when its retention purpose ends.
 ```
 
 ---
 
 ## 9.12 Exercises
 
-### Exercise 1
+### Exercise 1 — Foundation: SLI and SLO Design
 
 Select SLIs and SLOs for a checkout API serving 150,000 requests per minute. Include latency SLO, availability SLO, saturation SLI, and compute the resulting 30-day error budget. Define the alerting strategy aligned with this budget.
 
-### Exercise 2
+### Exercise 2 — Applied: Structured Logging
 
 Design a structured logging schema for a payment service. Include required fields, sensitive data handling, correlation with traces, and a sample log line for successful payment and payment failure.
 
-### Exercise 3
+### Exercise 3 — Applied: Distributed Tracing
 
 Instrument the following call chain with OpenTelemetry:
 - client request arrives at API Gateway
@@ -588,11 +582,11 @@ Instrument the following call chain with OpenTelemetry:
 
 Include spans, attributes, events, and sampling strategy.
 
-### Exercise 4
+### Exercise 4 — Advanced: Incident Investigation
 
 A service shows p99 latency increase from 180ms to 650ms after a new deployment. Draft an incident investigation flow using dashboards, logs, and traces.
 
-### Exercise 5
+### Exercise 5 — Advanced: Alert Quality
 
 Reduce alert fatigue by classifying five candidate alerts into page, business-hours ticket, ticket, and suppress categories. Justify each classification.
 

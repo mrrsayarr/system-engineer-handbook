@@ -1,6 +1,7 @@
 # Chapter 4: Scalability & Performance Patterns
 
-> **Estimated Time: 3-4 hours** | **Prerequisites: Chapters 1-3**
+> **Estimated Time:** 5–7 hours | **Prerequisites:** Chapters 1–3<br>
+> **Last reviewed:** 2026-08-31 | **Level:** Foundation → applied → production judgment
 
 ---
 
@@ -22,7 +23,9 @@ By the end of this chapter, you will be able to:
 
 ### What is Scalability?
 
-> A system's ability to **handle increased load** (users, data, throughput) **proportionally to resources added**, **without architectural change**.
+> A system's ability to handle a defined increase in load while continuing to
+> meet its service objectives at an acceptable marginal cost. Every design has
+> a scaling envelope; discovering its next bottleneck is part of the work.
 
 ### Two Dimensions of Scale
 
@@ -32,8 +35,8 @@ LOAD INCREASE → MORE RESOURCES              LOAD INCREASE → SAME RESOURCES
 SCALE OUT (Horizontal)                      SCALE UP (Vertical)
 ├─ Add more instances                       ├─ Bigger instance type
 ├─ Stateless preferred                       ├─ More CPU, RAM, disk
-├─ Linear cost growth                        ├─ Diminishing returns
-├─ Requires load balancing                   ├─ Single point of failure
+├─ Cost depends on efficiency and overhead   ├─ Often faces diminishing returns
+├─ Requires distribution and load balancing  ├─ Failure domain grows with the node
 ├─ Eventual scale limit (DB)                ├─ Hard ceiling (largest SKU)
 └─ Complex (consistency, ops)                └─ Simple but capped
 ```
@@ -346,7 +349,7 @@ Solutions:
 
 ## 4.7 Database Replication Patterns
 
-### Single-Leader (Master-Slave)
+### Single-Leader (Primary-Replica)
 
 ```
                     WRITE
@@ -367,7 +370,7 @@ Solutions:
 ✗ Replication lag affects reads
 ```
 
-### Multi-Leader (Master-Master)
+### Multi-Leader
 
 ```
    ┌────────┐              ┌────────┐
@@ -392,7 +395,8 @@ Solutions:
    Client → W=2 of 3 must ack
    Client → R=2 of 3 must respond
    
-   W + R > N → strong consistency
+   W + R > N → overlapping quorums; strong consistency still depends on
+               versioning, conflict handling, and the quorum implementation
    W + R ≤ N → fast, possibly stale
    
    ✓ High availability, no leader bottleneck
@@ -619,6 +623,48 @@ def process_orders():
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+### Admission Control and Load Shedding
+
+Autoscaling reacts after a threshold is crossed. Admission control protects the system during the delay between overload and added capacity by limiting work before threads, database connections, memory or queue slots are exhausted.
+
+| Condition | Decision | Response | Reason |
+|-----------|----------|----------|--------|
+| Per-tenant budget exceeded | Reject | `429` + `Retry-After` | Fairness and abuse protection |
+| Global concurrency full | Reject or queue briefly | `503` | Preserve healthy in-flight work |
+| Queue age exceeds SLO | Drop low-priority jobs | DLQ/job failure | Stale work has lost value |
+| Dependency circuit open | Fail fast or degrade | Cached/partial response | Prevent cascading failure |
+| Critical memory pressure | Disable optional work | Reduced response | Keep critical path alive |
+
+```python
+import asyncio
+from contextlib import asynccontextmanager
+
+class ConcurrencyLimiter:
+    def __init__(self, limit: int):
+        self._slots = asyncio.Semaphore(limit)
+
+    @asynccontextmanager
+    async def admit(self, wait_seconds: float = 0.02):
+        try:
+            await asyncio.wait_for(self._slots.acquire(), timeout=wait_seconds)
+        except TimeoutError as exc:
+            raise RuntimeError("capacity exhausted") from exc
+        try:
+            yield
+        finally:
+            self._slots.release()
+
+limiter = ConcurrencyLimiter(limit=200)
+```
+
+**Design rules:**
+
+- Bound every queue; unbounded queues turn overload into memory exhaustion and tail latency.
+- Reserve capacity for health checks, control-plane calls and high-priority traffic.
+- Retry only idempotent work with exponential backoff and jitter.
+- Shed based on queue age or deadline miss, not only queue length.
+- Measure admitted, rejected, dropped and timed-out requests separately.
+
 ---
 
 ## 4.11 CQRS & Event Sourcing
@@ -776,6 +822,10 @@ ANALYTICS:
 
 ### The RAIL Performance Model
 
+RAIL is a user-experience model for interactive front ends, not a universal
+backend latency standard. Apply its thresholds only to the browser or client
+interaction being evaluated; derive service budgets from the end-to-end SLO.
+
 | Metric | Target | Focus |
 |--------|--------|-------|
 | **Response** (input delay) | < 100ms | UI responsiveness |
@@ -810,8 +860,8 @@ Datadog APM, New Relic, Honeycomb, Lightstep, Elastic APM
 ### Common Performance Wins
 
 ```yaml
-1. CACHE AGGRESSIVELY:
-   - Cache expensive computations
+1. CACHE DELIBERATELY:
+   - Cache measured hot paths when staleness and invalidation are understood
    - Use stale-while-revalidate
    - Layer caches (L1 in-process, L2 Redis)
 
@@ -830,7 +880,7 @@ Datadog APM, New Relic, Honeycomb, Lightstep, Elastic APM
    - Chunked transfer for large responses
 
 5. COMPRESS AND MINIFY:
-   - Brotli > gzip > none
+   - Benchmark Brotli and gzip by payload, client support, CPU cost, and cacheability
    - Image optimization (WebP, AVIF, lazy load)
    - Minify CSS/JS, tree-shake
 
@@ -859,7 +909,7 @@ adoption(t) = total_market / (1 + exp(-k * (t - midpoint)))
 # Resource Planning
 # Given:
 #   - Current load: 100K DAU
-#   - Growth: 20% YoY
+#   - Growth assumption: 100% YoY
 #   - Target SLO: p99 < 200ms, 99.9% availability
 # Plan for: 200K DAU at year 1, 400K at year 2
 
@@ -867,8 +917,52 @@ adoption(t) = total_market / (1 + exp(-k * (t - midpoint)))
 # Current: 100K DAU × 100 requests/user = 10M requests/day
 # Peak: 10M / 86400 × 5 = 580 QPS
 # Year 2: 1160 QPS peak
-# Provision: 2x headroom = 2320 QPS capacity
+# Required capacity after failure headroom is determined by load tests and the
+# chosen zone/instance failure model; a universal 2x multiplier is not implied.
 ```
+
+### Little's Law for Concurrency and Queue Capacity
+
+Little's Law relates average concurrency (`L`), arrival rate (`λ`) and average time in the system (`W`): `L = λ × W`.
+
+Example: An API receives 2,000 requests/second and spends 100 ms per request on average.
+
+```text
+λ = 2,000 requests/s
+W = 0.100 s
+L = 2,000 × 0.100 = 200 concurrent requests
+
+Per-instance safe concurrency = 50
+Base instances = ceil(200 / 50) = 4
+N+1 capacity = 5
+30% headroom = ceil(5 × 1.30) = 7 instances
+```
+
+Little's Law is an average model, not a tail-latency guarantee. Use peak arrival rate and measured service-time distributions for production planning.
+
+### Latency Budget Example
+
+| Segment | p99 budget |
+|---------|------------|
+| Edge, TLS and load balancer | 20 ms |
+| Authentication and policy | 15 ms |
+| Application logic | 35 ms |
+| Cache/database access | 60 ms |
+| Downstream service | 40 ms |
+| Serialization and response | 10 ms |
+| Safety margin | 20 ms |
+| **Total** | **200 ms** |
+
+Child timeouts must fit inside the parent deadline; otherwise the end-to-end SLO cannot be met.
+
+### Capacity Test Acceptance Criteria
+
+- Test normal, expected peak and overload traffic separately.
+- Record p50, p95 and p99—not only averages.
+- Find the saturation point where throughput stops rising but latency and errors increase.
+- Verify one-instance or one-zone failure at peak traffic.
+- Observe CPU, memory, queue age, connection pools, cache hit rate and dependencies together.
+- Confirm overload returns bounded `429`/`503` responses instead of cascading failure.
 
 ### SLO-Based Capacity Planning
 
@@ -895,7 +989,7 @@ Plan:
 
 ## 4.15 Exercises
 
-### Exercise 1: Scale-Out Design
+### Exercise 1 — Foundation: Scale-Out Design
 A monolithic Rails app handles 500 RPS. Database is bottleneck (60% CPU on primary).
 Design migration to:
 - Phase 1: Quick wins (caching, indexing, read replicas)
@@ -904,27 +998,27 @@ Design migration to:
 
 Include timeline, risks, rollback plan.
 
-### Exercise 2: Sharding Key Selection
+### Exercise 2 — Applied: Sharding Key Selection
 For a SaaS multi-tenant application (1000 tenants, 10M users, 1B events):
 - Choose sharding strategy
 - Justify with metrics (query patterns, growth)
 - Handle tenant isolation needs
 
-### Exercise 3: Caching Strategy
+### Exercise 3 — Applied: Caching Strategy
 Design caching for a product catalog (10M SKUs, 100K updates/day, 1M reads/sec):
 - Cache layers
 - Invalidation strategy
 - Cache stampede prevention
 - Memory sizing
 
-### Exercise 4: Performance Investigation
+### Exercise 4 — Advanced: Performance Investigation
 Users report that p99 latency for `/search` increased from 200ms to 800ms over the past week.
 Create a structured investigation:
 - What metrics to check
 - What hypotheses to test
 - How to identify root cause
 
-### Exercise 5: CQRS for Audit
+### Exercise 5 — Advanced: CQRS for Audit
 A financial system needs complete audit trail. Design CQRS + Event Sourcing:
 - Event schema
 - Projection strategy

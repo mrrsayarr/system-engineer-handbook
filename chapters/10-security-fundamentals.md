@@ -1,6 +1,7 @@
 # Chapter 10: Security Fundamentals
 
-> **Estimated Time: 3-4 hours** | **Prerequisites: Chapters 1-9**
+> **Estimated Time:** 5–7 hours | **Prerequisites:** Chapters 1–9<br>
+> **Last reviewed:** 2026-08-31 | **Level:** Foundation → applied → production judgment
 
 ---
 
@@ -9,7 +10,7 @@
 By the end of this chapter, you will be able to:
 
 1. **Map threats to boundaries** across identity, network, host, and application
-2. **Implement zero-trust controls** with mTLS, SPIFFE, and policy-based access
+2. **Design zero-trust controls** from resource, identity, device/workload, and policy requirements
 3. **Design secure deployment pipelines** and harden hosts and containers
 4. **Select and configure encryption** for data in transit and at rest
 5. **Detect intrusions and anomalies** using logs, EDR, and runtime security
@@ -99,14 +100,14 @@ IDENTITY:
 ```text
 ASSUMPTION:
   no implicit trust based on network location
-  verify explicitly every request and workload identity
+  make access decisions from authenticated identity and current policy/context
 
 CONTROLS:
-  - mTLS between services
+  - workload authentication such as mTLS where the threat model requires it
   - identity-aware proxy
   - fine-grained access policies
   - continuous verification with contextual signals
-  - audit every grant and deny
+  - audit security-relevant grants and denials without creating unbounded noise
 ```
 
 ```text
@@ -129,7 +130,7 @@ Traditional:
   flat network inside perimeter
 
 Zero trust:
-  every connection requires authentication and authorization
+  each protected resource has an explicit authentication and authorization policy
   east-west traffic is inspected
   default deny policy posture
   implicit trust is removed
@@ -237,8 +238,8 @@ INTERNAL TRAFFIC:
   - validate certificate properties at runtime
 
 EXTERNAL TRAFFIC:
-  - TLS 1.3 minimum
-  - strong cipher suites only
+  - prefer TLS 1.3; retain TLS 1.2 only when compatibility and current policy permit
+  - follow current TLS BCP and platform defaults; do not invent cipher lists casually
   - certificate rotation automated
   - HSTS header for browsers
 ```
@@ -269,7 +270,7 @@ BACKUPS:
 
 ```text
 PRINCIPLES:
-  - secrets never in code, config files, or logs
+  - secrets never committed to source or emitted to logs
   - secret values visible only at runtime
   - access to secret management is tightly controlled
   - audit all secret access
@@ -285,9 +286,9 @@ STORAGE:
 
 ```text
 ENV vs VOLUME:
-  env var -> visible in process listings, secure in modern orchestrators
-  volume mount -> file path avoids env variable exposure
-  prefer volume mount for sensitive values in suspicious environments
+  env var -> inherited by child processes and exposed through some debug/runtime surfaces
+  volume mount -> permissioned file with rotation and cleanup concerns
+  choose the delivery mechanism from platform behavior and threat model
 
 RUNTIME:
   vault agent injector
@@ -323,8 +324,8 @@ XSS:
   implement CSP where feasible
 
 CSRF:
-  require custom headers for state-changing requests
-  same-site cookies and CSRF tokens
+  same-site cookies and synchronizer/double-submit tokens where appropriate
+  custom headers help only with a correctly restricted CORS policy
   validate Origin or Referer for dangerous operations
 ```
 
@@ -353,8 +354,10 @@ TYPES:
 TOKEN CHOICES:
   short-lived access tokens with refresh tokens
   opaque tokens vs self-contained JWT
-  validate JWT signature, issuer, audience, expiry
-  reject tokens without explicit algorithm
+  pin accepted algorithms and key sources; reject algorithm/key confusion
+  validate signature, issuer, audience, expiry, not-before, and token type
+  define clock skew, key rotation, revocation, replay, and authorization behavior
+  OAuth access tokens are not proof of user authentication unless the profile says so
 ```
 
 ### Rate limiting and abuse prevention
@@ -396,8 +399,8 @@ ISO 27001:
 
 PCI DSS:
   cardholder data environment controls
-  network segmentation applies
-  quarterly scans and annual assessment
+  segmentation can reduce scope only when designed and validated correctly
+  assessment and scanning obligations depend on the current standard and entity
 
 GDPR:
   data minimization, purpose limitation
@@ -435,11 +438,9 @@ LIFECYCLE:
   discovery -> triage -> remediation -> validation -> closure
 
 PRIORITY:
-  critical remote code execution first
-  authentication bypasses second
-  then privilege escalation
-  then information disclosure with impact
-  then low severity and informational
+  prioritize observed exploitation, internet exposure, reachable vulnerable paths,
+  asset/data criticality, available mitigations, and business impact
+  severity score alone does not determine remediation order
 
 AUTOMATION:
   container image scanning in CI
@@ -459,7 +460,7 @@ CONTAINMENT:
   - isolate affected systems
   - preserve evidence
   - disable compromised identities
-  - rotate secrets immediately
+  - revoke or rotate compromised credentials through a coordinated containment plan
 
 ERADICATION:
   - remove attacker access
@@ -481,19 +482,19 @@ LESSONS LEARNED:
 
 ## 10.11 Exercises
 
-### Exercise 1
+### Exercise 1 — Foundation: Threat Modeling
 
 Threat model a payment API. Identify trust boundaries, list threats per STRIDE category, and propose mitigations with implementation notes.
 
-### Exercise 2
+### Exercise 2 — Advanced: Zero-Trust Access
 
 Design zero trust access for internal admin interfaces. Include workload identity, policy engine integration, authentication for humans, logging requirements, and breach containment controls.
 
-### Exercise 3
+### Exercise 3 — Applied: Secrets Lifecycle
 
 Design secrets lifecycle for a service with database, Redis, external payment gateway, and third-party analytics. Include provisioning, rotation, fallback behavior, and audit trails.
 
-### Exercise 4
+### Exercise 4 — Advanced: Security Operations
 
 Design a secrets audit and rotation process for production. Include automation scope, manual exceptions, human approval threshold, and fallback when secret management is unavailable.
 
@@ -508,6 +509,11 @@ Design a secrets audit and rotation process for production. Include automation s
 - OWASP Top 10, ASVS, and Cheat Sheet Series
 - NIST Cybersecurity Framework
 - ISO 27001 and SOC 2 official documentation
+- [NIST SP 800-207: Zero Trust Architecture](https://csrc.nist.gov/pubs/sp/800/207/final)
+- [NIST SP 800-207A: Cloud-Native Zero Trust Access Control](https://csrc.nist.gov/pubs/sp/800/207/a/final)
+- [RFC 9700: OAuth 2.0 Security Best Current Practice](https://www.rfc-editor.org/rfc/rfc9700.html)
+- [OWASP Application Security Verification Standard](https://owasp.org/www-project-application-security-verification-standard/)
+- [PCI Security Standards Council: Current PCI DSS](https://www.pcisecuritystandards.org/faqs/1328/)
 
 ---
 

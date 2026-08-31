@@ -1,6 +1,7 @@
 # Chapter 3: Distributed Systems Concepts
 
-> **Estimated Time: 4-5 hours** | **Prerequisites: Chapters 1-2, basic algorithms**
+> **Estimated Time:** 5–7 hours | **Prerequisites:** Chapters 1–2, concurrency, and basic algorithms<br>
+> **Last reviewed:** 2026-08-31 | **Level:** Foundation → applied → production judgment
 
 ---
 
@@ -128,7 +129,7 @@ class VectorClock:
 
 ## 3.4 CAP & PACELC — Revisited
 
-### Real-World CAP Choices
+### Reasoning About CAP Choices
 
 ```
                     Network Partition
@@ -163,6 +164,12 @@ class VectorClock:
      • MongoDB (tunable)         • CockroachDB
      • Cassandra (ONE)           • FoundationDB
 ```
+
+CAP applies to a specific operation during a partition, not permanently to a
+brand. Client consistency settings, quorum sizes, replication topology, and
+which side of a partition receives traffic can change the result. State the
+invariant and failure model before attaching “CP” or “AP” to a design. Product
+examples in diagrams are illustrative, not universal classifications.
 
 ---
 
@@ -726,16 +733,20 @@ class OrderWorkflow:
 
 ---
 
-## 3.11 Idempotency, Exactly-Once Delivery & Ordering
+## 3.11 Delivery Semantics and Ordering
 
 ### Delivery Semantics
 
 | Semantics | Definition | How |
 |-----------|------------|-----|
-| **At-most-once** | Message may be lost, no duplicates | Fire and forget |
-| **At-least-once** | Message always delivered, may duplicate | Retries |
-| **Exactly-once** | Message processed once and only once | Idempotency + dedup |
-| **Effectively-once** | Combined: at-least-once delivery + idempotent processing | Standard approach |
+| **At-most-once attempt** | The system does not retry after an uncertain outcome; work may be lost | No retry after send/ack uncertainty |
+| **At-least-once attempt** | The system retries until success, expiry, or operator intervention; duplicates are possible | Durable state, acknowledgements, retries |
+| **Scoped exactly-once processing** | A platform may atomically couple consumption and output inside a defined boundary | Transactions with explicit scope and failure assumptions |
+| **Effectively-once business outcome** | Duplicate attempts produce one intended state transition | Idempotency, deduplication, uniqueness, reconciliation |
+
+No finite system can promise eventual delivery under unlimited outage,
+expired retention, poison data, or permanent authorization failure. Document
+the retry horizon, dead-letter policy, ownership, and reconciliation path.
 
 ### Message Ordering
 
@@ -801,36 +812,23 @@ Sidecar / Mesh:
 
 ### Distributed Locks
 
-```python
-# Redis Redlock (controversial — see antirez reply)
-# Better: use Zookeeper/etcd lease-based locks
+A lease is not sufficient by itself: a paused owner can resume after expiry
+and write concurrently with the new owner. Correctness-critical coordination
+needs all of the following:
 
-import etcd3
+1. **Atomic acquisition:** compare “key absent” and create the lease-bound key
+   in one consensus transaction.
+2. **Ownership-aware release:** delete only if the stored owner and lease still
+   match; never issue an unconditional delete.
+3. **Fencing token:** each successful acquisition receives a monotonically
+   increasing token. The protected resource rejects tokens older than the
+   greatest token it has already accepted.
+4. **Lease-loss handling:** stop work when keepalive or quorum is lost, while
+   assuming the stop signal can be delayed.
 
-class EtcdLock:
-    def __init__(self, etcd_client, key, ttl=10):
-        self.client = etcd_client
-        self.key = key
-        self.ttl = ttl
-        self.lease = None
-    
-    def acquire(self):
-        self.lease = self.client.lease(self.ttl)
-        try:
-            self.client.put(self.key, self.lease.id, lease=self.lease)
-            return True
-        except etcd3.Etcd3Error:
-            return False
-    
-    def release(self):
-        if self.lease:
-            self.lease.revoke()
-
-# Redlock considerations:
-# • Network partitions can break safety
-# • Use fencing tokens (Martin Kleppmann critique)
-# • Avoid for correctness-critical use, prefer async coordination
-```
+Prefer a database constraint, partition ownership, or idempotent workflow when
+one of those removes the need for a distributed lock. A lock library cannot
+make an external resource safe if that resource cannot enforce fencing.
 
 ---
 
@@ -924,7 +922,7 @@ Span A (API Gateway)
 
 ## 3.15 Exercises
 
-### Exercise 1: Consistency Model Selection
+### Exercise 1 — Foundation: Consistency Model Selection
 For each scenario, choose the appropriate consistency model:
 - Bank transfer between accounts
 - Facebook posts visibility
@@ -932,24 +930,24 @@ For each scenario, choose the appropriate consistency model:
 - User preference updates
 - DNS resolution
 
-### Exercise 2: CAP Trade-off Analysis
+### Exercise 2 — Applied: CAP Trade-off Analysis
 Design a system for IoT sensor data ingestion (100M devices, 1 msg/sec each). Justify CP vs AP with:
 - Failure modes
 - Recovery strategy
 - Cost
 
-### Exercise 3: Raft Implementation
-Implement a minimal Raft leader election in your language of choice. Test with:
+### Exercise 3 — Advanced: Raft Simulation
+Implement or use a deterministic simulation of minimal Raft leader election. Test with:
 - 3 nodes, kill leader, ensure new election
 - Network partition, ensure no split brain
 
-### Exercise 4: Saga Design
+### Exercise 4 — Applied: Saga Design
 Design a saga for "Travel Booking" (flight + hotel + car):
 - List the steps and compensations
 - Identify failure modes
 - Choose choreography vs orchestration with justification
 
-### Exercise 5: Idempotency Design
+### Exercise 5 — Advanced: Idempotency Design
 Design an idempotency system for a payment API:
 - Key strategy (UUID v4, v7, ULID?)
 - Storage (Redis? PostgreSQL? Both?)
