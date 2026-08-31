@@ -101,6 +101,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added Appendix F — Troubleshooting Playbooks for HTTP 5xx, DNS, TCP timeouts, CPU/memory saturation, disk/inode exhaustion, database pools, Kafka lag, Kubernetes CrashLoopBackOff, certificate failures, BGP route loss, and cache stampedes.
 - Hardened GitHub Actions CI to work without deleted local package/config files, validate Markdown and Mermaid blocks correctly, and skip optional Vale/cspell checks when their configuration is absent.
 - Added a repository-level `.markdownlint.json` policy that preserves the handbook's diagram/code style while enforcing the remaining Markdown defaults.
+- Updated GitHub Actions checkout/setup-node actions to v5 for the Node.js 24 runner transition; the change removes the Node.js 20 deprecation warning without opting into insecure legacy runtime support.
+- Fixed `MD032/blanks-around-lists` failures by adding blank quoted lines before blockquoted attribution and appendix lists.
 - Added additional decision tables, capacity calculations, acceptance criteria, rollback guidance, and focused Mermaid diagrams to the second solution batch.
 
 ### Planned

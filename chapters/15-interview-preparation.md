@@ -369,6 +369,7 @@ AFTER INTERVIEW:
 > **Return to**: [Table of Contents](./../README.md)
 
 > **Appendices**:
+>
 > - [Appendix A: Glossary of Terms](./../appendices/glossary.md)
 > - [Appendix B: Recommended Resources](./../appendices/resources.md)
 > - [Appendix C: ADR Templates](./../appendices/adr-templates.md)

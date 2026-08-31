@@ -207,6 +207,7 @@ We welcome contributions! See [CONTRIBUTING.md](./CONTRIBUTING.md) for guideline
 This work is licensed under the **MIT License** — see [LICENSE](./LICENSE) for details.
 
 > **Attribution**: This handbook draws inspiration and structure from excellent community resources:
+>
 > - [system-design-primer](https://github.com/donnemartin/system-design-primer) by Donne Martin
 > - [system-design](https://github.com/karanpratapsingh/system-design) by Karan Pratap Singh
 > - [awesome-system-design-resources](https://github.com/ashishps1/awesome-system-design-resources) by Ashish Patel
