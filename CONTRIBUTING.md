@@ -182,12 +182,4 @@ Contributors are recognized in:
 
 ---
 
-## Questions?
-
-- Open a [Discussion](https://github.com/your-org/system-engineer-handbook/discussions)
-- Join our [Discord community](https://discord.gg/system-engineer)
-- Email: contributors@system-engineer-handbook.dev
-
----
-
 > **Thank you** for helping make this handbook better for engineers everywhere!
