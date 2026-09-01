@@ -80,6 +80,8 @@ By completing this handbook, you will:
 | D | [System Design Checklist](./appendices/system-design-checklist.md) |
 | E | [Exercise Solutions and Evaluation Guides](./appendices/exercise-solutions.md) — Chapters 1–15 complete |
 | F | [Troubleshooting Playbooks](./appendices/troubleshooting-playbooks.md) — 11 production failure modes |
+| H | [Linux Administration](./appendices/linux-administration.md) — Complete: runtime, storage, identity, resources, and recovery |
+| I | [Network Lab Guide](./appendices/network-lab-guide.md) — Parts 1–5 complete: Linux foundations, services/transport, dynamic routing, integrated incidents, enterprise campus, MPLS/L3VPN, and production changes |
 
 ### Practical Examples
 

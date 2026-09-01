@@ -46,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Removed the completed standalone curriculum gap audit after its findings were incorporated into the active Sprint 5–11 roadmap; retained Sprint 4 as a completed historical decision point.
 - **Chapters 1–5:** Added progressive learning metadata (`Foundation → applied → production judgment`), 2026 review dates, level-labeled exercises, and more explicit production assumptions.
 - **Chapter 1 — System Design Fundamentals:** Reworked cost estimation around billable workload drivers instead of stale provider prices; clarified CAP/PACELC, idempotency, caching, delivery guarantees, and failure-aware capacity planning.
 - **Chapter 2 — Network Engineering Fundamentals:** Replaced classful IPv4 teaching with CIDR and special-purpose ranges; corrected `/26` subnet math; clarified IPv6 fragmentation, IPsec, RPKI/ROV, BGPsec, QUIC, and TLS terminology; changed TCP tuning from copy-paste kernel values to a measured experiment workflow.
@@ -89,6 +90,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Began **Appendix H — Linux Administration** with a progressive, evidence-first treatment of Linux process identity and states, `/proc`, signals, terminal job control, systemd unit lifecycle and dependencies, journald queries, service-failure diagnosis, a safe transient-unit lab, exercises, and completion criteria.
+- Added three focused Linux administration diagrams covering boot responsibility, controlled process termination, and the simplified systemd service lifecycle.
+- Verified the new Linux material against current Linux kernel documentation, Linux man-pages, systemd guidance, and the 2026 Debian systemd manual set; documented distribution and version boundaries explicitly.
+- Expanded **Appendix H — Linux Administration** with Part 2: filesystem hierarchy and VFS concepts; dentries, inodes, links and file descriptors; capacity and mount diagnosis; mode bits, special bits, ACL masks and capabilities; NSS-backed identity lifecycle; narrow sudo delegation; an access-denied playbook; and a least-privilege shared-directory lab.
+- Added diagrams for application-data placement, pathname-to-file resolution, and layered access-denial diagnosis, plus progressive exercises and a Part 2 competency checklist.
+- Completed **Appendix H — Linux Administration** with Part 3: USE-based CPU, memory and I/O diagnosis; PSI; rlimits; cgroup v2 and systemd resource controls; evidence-driven sysctl policy; package lifecycle; staged boot recovery; four bounded failure laboratories; exercises; and a final competency gate.
+- Added resource-investigation, storage-path, sysctl-lifecycle, and boot-stage diagrams; verified the material against current Linux kernel, Linux man-pages, and systemd primary documentation.
+- Began **Appendix I — Network Lab Guide** with a safe, progressive Linux namespace and veth foundation lab covering namespace-local network state, connected-route reasoning, ARP/ICMP packet observation, three controlled faults, exact-resource cleanup, exercises, and a competency check.
+- Expanded Appendix I with a fully isolated three-host Linux bridge laboratory covering source-MAC learning, FDB forwarding and aging, broadcast/multicast/unknown-unicast behavior, ARP versus IPv6 Neighbor Discovery, parallel capture points, three L2/address failure injections, and evidence-preserving cleanup.
+- Added Appendix I Foundation Lab 3: a fully isolated two-subnet IPv4 router covering longest-prefix match, on-link next-hop resolution, namespace-scoped forwarding, per-hop Ethernet rewriting, TTL/ICMP behavior, asymmetric return paths, three distinguishable routing failures, and cleanup verification against host state.
+- Added Appendix I Foundation Lab 4: two isolated VLAN-aware Linux bridges with explicit VLAN 10/20 access and tagged trunk policy, ingress PVID and egress-untagged reasoning, access/trunk packet captures, VLAN-scoped FDB behavior, three VLAN mismatch failures, and exact cleanup.
+- Completed Appendix I Part 1 content with stateful nftables SNAT, conntrack/reverse-translation reasoning, pre/post-NAT captures, three translation/forwarding failures, exact table cleanup, an integrated troubleshooting gate, and a Part 1 competency checklist.
+- Completed Appendix I Part 2 content with isolated DNS authority/cache boundaries, environment-gated DHCP observation, TCP/UDP failure evidence, MTU/MSS/PMTUD diagnosis, TLS trust and identity failures, bounded packet-capture discipline, exact cleanup, and a layered competency gate.
+- Completed Appendix I Part 3 with one reusable four-router Containerlab topology, explicit FRR baselines, static/floating routes, OSPF adjacency/cost/ECMP/convergence, eBGP advertisement/policy/withdrawal/multipath, controlled failures, exact topology cleanup, and an integrated routing competency gate.
+- Completed Appendix I Part 4 with seven blind single-fault incident laboratories spanning neighbor/VLAN/routing, DNS, TCP, PMTUD, TLS, OSPF/BGP policy, plus an evidence ledger, operational updates, structured handoff, post-incident learning, and a scored three-layer foundation assessment.
+- Completed Appendix I Part 5 with campus hierarchy, STP/RSTP/MST, LACP, first-hop redundancy, DHCP snooping/DAI, 802.1X/NAC, QoS, MPLS/LDP and MP-BGP L3VPN reasoning, Cisco IOS XE/Junos intent mappings, and production change engineering with authorization, OOB recovery, canaries, stop/rollback criteria, post-checks, and audit records.
+- Completed the Sprint 6 source audit: sequential structure, balanced Markdown fences, acceptance-topic coverage, placeholder scan, supporting-asset inventory, and repository status alignment. Platform-dependent execution remains explicitly environment-gated.
+
 - Began **Appendix E — Exercise Solutions and Evaluation Guides** with a reusable evaluation rubric and complete worked solutions for Chapters 1–3.
 - Added calculation tables, decision matrices, Mermaid flows, failure analysis, acceptance criteria, and alternative-aware guidance to the first Appendix E batch.
 - Linked Appendix E from the README appendices index with its current completion status.
@@ -103,6 +122,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a repository-level `.markdownlint.json` policy that preserves the handbook's diagram/code style while enforcing the remaining Markdown defaults.
 - Updated GitHub Actions checkout/setup-node actions to v5 for the Node.js 24 runner transition; the change removes the Node.js 20 deprecation warning without opting into insecure legacy runtime support.
 - Fixed `MD032/blanks-around-lists` failures by adding blank quoted lines before blockquoted attribution and appendix lists.
+- Simplified GitHub Actions CI to a single lockfile-independent Markdown lint job; Mermaid, Vale, cspell, and external-link checks are intentionally deferred.
+- Reworked the local Turkish ROADMAP into a date-free, backlog-driven curriculum plan; marked completed exercise, practical-example, and troubleshooting sprints, prioritized curriculum gap analysis and engineering appendices, and isolated publishing work in a deferred track.
+- Removed the `.github` workflow configuration for now so curriculum work is not gated by publishing or automated lint infrastructure.
+- Completed Sprint 4 with a curriculum gap audit across Chapters 1–15, Appendices A–F, Capstone, and practical examples; prioritized Linux administration, enterprise networking, storage, automation, production readiness, capacity planning, deeper labs, and an optional Windows/identity track.
 - Added additional decision tables, capacity calculations, acceptance criteria, rollback guidance, and focused Mermaid diagrams to the second solution batch.
 
 ### Planned

@@ -1,0 +1,26 @@
+name: nli3
+
+topology:
+  defaults:
+    kind: linux
+    image: quay.io/frrouting/frr:10.2.2
+    binds:
+      - frr/daemons:/etc/frr/daemons:ro
+  nodes:
+    r1:
+      binds:
+        - frr/r1.conf:/etc/frr/frr.conf:ro
+    r2:
+      binds:
+        - frr/r2.conf:/etc/frr/frr.conf:ro
+    r3:
+      binds:
+        - frr/r3.conf:/etc/frr/frr.conf:ro
+    r4:
+      binds:
+        - frr/r4.conf:/etc/frr/frr.conf:ro
+  links:
+    - endpoints: ["r1:eth1", "r2:eth1"]
+    - endpoints: ["r1:eth2", "r3:eth1"]
+    - endpoints: ["r2:eth2", "r4:eth1"]
+    - endpoints: ["r3:eth2", "r4:eth2"]
