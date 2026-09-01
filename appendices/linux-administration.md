@@ -670,12 +670,12 @@ configuration management, and disaster recovery.
 
 ```mermaid
 flowchart TD
-    A[Application artifact] --> B[/usr, /opt, or image layer]
-    C[Host configuration] --> D[/etc]
-    E[Persistent mutable state] --> F[/var/lib or dedicated volume]
-    G[Runtime state] --> H[/run]
-    I[Logs] --> J[Journal and/or /var/log]
-    K[Re-creatable cache] --> L[/var/cache]
+    A[Application artifact] --> B["/usr, /opt, or image layer"]
+    C[Host configuration] --> D["/etc"]
+    E[Persistent mutable state] --> F["/var/lib or dedicated volume"]
+    G[Runtime state] --> H["/run"]
+    I[Logs] --> J["Journal and/or /var/log"]
+    K[Re-creatable cache] --> L["/var/cache"]
     B --> M[Backup and restore policy]
     D --> M
     F --> M
