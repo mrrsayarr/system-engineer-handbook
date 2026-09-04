@@ -1,3 +1,5 @@
+![System Engineer Handbook cover](./assets/system-engineer-handbook-cover.png)
+
 # System & Network Engineering Handbook
 
 > **A Comprehensive Professional Guide for System Engineers, Network Engineers, and Aspiring Candidates**
